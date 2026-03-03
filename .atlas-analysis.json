@@ -1,0 +1,201 @@
+{
+  "projectType": "framework",
+  "projectName": "TanStack Router",
+  "projectDescription": "A type-safe router with built-in caching, SSR support, and full-stack framework capabilities for React, Solid, and Vue applications.",
+  "theme": "sequoia",
+  "primaryColor": "#00C9A7",
+  "lightColor": "#84E1D4",
+  "darkColor": "#008F75",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Router",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "router/introduction",
+              "router/installation",
+              "router/quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "router/concepts/routing",
+              "router/concepts/routes",
+              "router/concepts/navigation",
+              "router/concepts/search-params",
+              "router/concepts/path-params",
+              "router/concepts/loaders",
+              "router/concepts/type-safety"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "router/guides/file-based-routing",
+              "router/guides/code-based-routing",
+              "router/guides/data-loading",
+              "router/guides/error-handling",
+              "router/guides/nested-layouts",
+              "router/guides/code-splitting",
+              "router/guides/scroll-restoration",
+              "router/guides/authentication",
+              "router/guides/ssr",
+              "router/guides/devtools"
+            ]
+          },
+          {
+            "group": "Router API",
+            "pages": [
+              "router/api/router",
+              "router/api/route",
+              "router/api/file-route",
+              "router/api/link",
+              "router/api/hooks"
+            ]
+          },
+          {
+            "group": "Framework Support",
+            "pages": [
+              "router/frameworks/react",
+              "router/frameworks/solid",
+              "router/frameworks/vue"
+            ]
+          },
+          {
+            "group": "Plugins & Tools",
+            "pages": [
+              "router/plugins/vite",
+              "router/plugins/webpack",
+              "router/plugins/esbuild",
+              "router/plugins/rspack",
+              "router/tools/cli",
+              "router/tools/eslint-plugin"
+            ]
+          },
+          {
+            "group": "Validation",
+            "pages": [
+              "router/validation/overview",
+              "router/validation/zod",
+              "router/validation/valibot",
+              "router/validation/arktype"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Start",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "start/introduction",
+              "start/installation",
+              "start/quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "start/concepts/server-rendering",
+              "start/concepts/server-functions",
+              "start/concepts/streaming",
+              "start/concepts/deployment"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "start/guides/server-functions",
+              "start/guides/ssr-streaming",
+              "start/guides/middleware",
+              "start/guides/deployment",
+              "start/guides/static-generation"
+            ]
+          },
+          {
+            "group": "Start API",
+            "pages": [
+              "start/api/server-functions",
+              "start/api/middleware",
+              "start/api/client-rpc",
+              "start/api/server-rpc"
+            ]
+          },
+          {
+            "group": "Framework Support",
+            "pages": [
+              "start/frameworks/react",
+              "start/frameworks/solid",
+              "start/frameworks/vue"
+            ]
+          },
+          {
+            "group": "Deployment",
+            "pages": [
+              "start/deployment/cloudflare",
+              "start/deployment/netlify",
+              "start/deployment/vercel",
+              "start/deployment/node"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "End-to-end type safety for routes, params, and loaders",
+    "Schema-driven search params with validation adapters",
+    "Built-in caching, prefetching, and invalidation",
+    "File-based and code-based routing",
+    "Nested layouts with automatic error boundaries",
+    "Full SSR support with streaming",
+    "Server functions with type-safe RPC",
+    "Universal bundler plugins (Vite, Webpack, ESBuild, Rspack)",
+    "Framework-agnostic core with React, Solid, and Vue support",
+    "Production-ready full-stack framework (TanStack Start)"
+  ],
+  "publicApiSurface": [
+    "createRouter",
+    "createRoute",
+    "createFileRoute",
+    "createLazyRoute",
+    "Router",
+    "Route",
+    "FileRoute",
+    "Link",
+    "Navigate",
+    "Outlet",
+    "useRouter",
+    "useNavigate",
+    "useParams",
+    "useSearch",
+    "useLoaderData",
+    "useMatch",
+    "useMatches",
+    "useRouterState",
+    "defer",
+    "redirect",
+    "notFound",
+    "RouterProvider",
+    "createBrowserHistory",
+    "createHashHistory",
+    "createMemoryHistory",
+    "parseSearchWith",
+    "stringifySearchWith",
+    "zodValidator",
+    "valibotValidator",
+    "arktypeValidator",
+    "TanStackRouterVite",
+    "TanStackRouterWebpack",
+    "TanStackRouterEsbuild",
+    "TanStackRouterRspack",
+    "createServerFn",
+    "createMiddleware",
+    "json",
+    "redirect (server)"
+  ]
+}

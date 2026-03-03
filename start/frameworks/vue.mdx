@@ -1,0 +1,343 @@
+---
+title: "Vue Start"
+description: "Build full-stack Vue applications with TanStack Start"
+icon: "v"
+---
+
+TanStack Vue Start provides SSR, streaming, server functions, API routes, and bundling powered by TanStack Router and Vite, ready to deploy to your favorite hosting provider.
+
+## Installation
+
+Install the Vue Start package:
+
+```bash
+npm install @tanstack/vue-start
+```
+
+## Vite Plugin Setup
+
+Configure the TanStack Start Vite plugin in your `vite.config.ts`:
+
+```tsx
+import { tanstackStart } from '@tanstack/vue-start/plugin/vite'
+import { defineConfig } from 'vite'
+import vue from '@vitejs/plugin-vue'
+
+export default defineConfig({
+  plugins: [
+    tanstackStart({
+      srcDirectory: 'src',
+    }),
+    vue(),
+  ],
+})
+```
+
+## Router Setup
+
+Create your router instance in `src/router.ts`:
+
+```tsx
+import { createRouter } from '@tanstack/vue-router'
+import { routeTree } from './routeTree.gen'
+
+export function getRouter() {
+  const router = createRouter({
+    routeTree,
+    defaultPreload: 'intent',
+  })
+  return router
+}
+```
+
+## Server Functions
+
+TanStack Vue Start provides server functions for executing code on the server with full type safety.
+
+### Creating Server Functions
+
+Use `createServerFn` to define server-side logic:
+
+```tsx
+import { createServerFn } from '@tanstack/vue-start'
+
+const getUser = createServerFn()
+  .handler(async () => {
+    // This code runs only on the server
+    const user = await db.user.findFirst()
+    return user
+  })
+```
+
+### Using Server Functions in Components
+
+Call server functions using the `useServerFn` composable:
+
+```vue
+<script setup>
+import { useServerFn } from '@tanstack/vue-start'
+
+const fetchUser = useServerFn(getUser)
+
+const handleClick = async () => {
+  const user = await fetchUser()
+  console.log(user)
+}
+</script>
+
+<template>
+  <button @click="handleClick">Load User</button>
+</template>
+```
+
+The `useServerFn` composable automatically handles:
+- Type-safe function calls
+- Redirect responses from server functions
+- Integration with TanStack Router navigation
+
+## Middleware
+
+Add middleware to server functions for shared logic like authentication, logging, or data validation.
+
+### Creating Middleware
+
+```tsx
+import { createMiddleware } from '@tanstack/vue-start'
+
+const authMiddleware = createMiddleware()
+  .server(async ({ next, context }) => {
+    const user = await getSessionUser()
+    
+    if (!user) {
+      throw new Error('Unauthorized')
+    }
+    
+    return next({
+      context: {
+        user,
+      },
+    })
+  })
+```
+
+### Using Middleware in Server Functions
+
+```tsx
+const protectedAction = createServerFn()
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    // context.user is typed and available
+    return { userId: context.user.id }
+  })
+```
+
+## Input Validation
+
+Validate server function inputs with validators like Zod, Valibot, or ArkType:
+
+```tsx
+import { createServerFn } from '@tanstack/vue-start'
+import { z } from 'zod'
+
+const updateUser = createServerFn()
+  .inputValidator(z.object({
+    name: z.string(),
+    email: z.string().email(),
+  }))
+  .handler(async ({ data }) => {
+    // data is fully typed based on the validator
+    await db.user.update({
+      where: { id: data.id },
+      data: { name: data.name, email: data.email },
+    })
+  })
+
+// Call with type-safe data
+await updateUser({ 
+  data: { 
+    name: 'John', 
+    email: 'john@example.com' 
+  } 
+})
+```
+
+## HTTP Methods
+
+Server functions support both GET and POST methods:
+
+```tsx
+// GET request (default)
+const getData = createServerFn().handler(async () => {
+  return { data: 'value' }
+})
+
+// POST request
+const postData = createServerFn({ method: 'POST' })
+  .handler(async ({ data }) => {
+    return { success: true }
+  })
+```
+
+## Client and Server Contexts
+
+Share context between client and server:
+
+```tsx
+const contextMiddleware = createMiddleware()
+  .client(async ({ next }) => {
+    return next({
+      sendContext: {
+        clientTimestamp: Date.now(),
+      },
+    })
+  })
+  .server(async ({ context, next }) => {
+    console.log('Client timestamp:', context.clientTimestamp)
+    return next()
+  })
+```
+
+## Package Exports
+
+TanStack Vue Start provides several package exports:
+
+- `@tanstack/vue-start` - Main client exports
+- `@tanstack/vue-start/server` - Server-only utilities
+- `@tanstack/vue-start/client` - Client-only utilities
+- `@tanstack/vue-start/plugin/vite` - Vite plugin
+- `@tanstack/vue-start/server-rpc` - Server RPC utilities
+- `@tanstack/vue-start/client-rpc` - Client RPC utilities
+- `@tanstack/vue-start/ssr-rpc` - SSR RPC utilities
+
+## Vue-Specific Features
+
+### Composition API
+
+Leverage Vue's Composition API with server functions:
+
+```vue
+<script setup>
+import { ref, onMounted } from 'vue'
+import { createServerFn } from '@tanstack/vue-start'
+
+const fetchData = createServerFn().handler(async () => {
+  return await db.getData()
+})
+
+const data = ref(null)
+const loading = ref(true)
+
+onMounted(async () => {
+  data.value = await fetchData()
+  loading.value = false
+})
+</script>
+
+<template>
+  <div v-if="loading">Loading...</div>
+  <div v-else>{{ data }}</div>
+</template>
+```
+
+### Suspense Support
+
+Use Vue's Suspense for async components:
+
+```vue
+<template>
+  <Suspense>
+    <template #default>
+      <AsyncContent />
+    </template>
+    <template #fallback>
+      <div>Loading...</div>
+    </template>
+  </Suspense>
+</template>
+```
+
+### Server-Side Rendering
+
+Vue Start provides optimized SSR with automatic hydration:
+
+```vue
+<script setup>
+import { ref, onServerPrefetch } from 'vue'
+
+const data = ref(null)
+
+onServerPrefetch(async () => {
+  data.value = await fetchServerData()
+})
+</script>
+
+<template>
+  <div>
+    <h1>Server Rendered Content</h1>
+    <div v-if="data">{{ data }}</div>
+  </div>
+</template>
+```
+
+### Reactive State
+
+Combine reactive state with server functions:
+
+```vue
+<script setup>
+import { ref, computed, watch } from 'vue'
+import { useServerFn } from '@tanstack/vue-start'
+
+const userId = ref(1)
+const fetchUser = useServerFn(getUser)
+const user = ref(null)
+
+watch(userId, async (newId) => {
+  user.value = await fetchUser({ data: { id: newId } })
+}, { immediate: true })
+
+const userName = computed(() => user.value?.name || 'Unknown')
+</script>
+```
+
+## TypeScript Configuration
+
+Ensure your `tsconfig.json` includes:
+
+```json
+{
+  "compilerOptions": {
+    "jsx": "preserve",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "types": ["vite/client"]
+  }
+}
+```
+
+## Peer Dependencies
+
+TanStack Vue Start requires:
+
+- Vue >= 3.3.0
+- Vite >= 7.0.0
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Server Functions" icon="server" href="/start/concepts/server-functions">
+    Learn more about creating and using server functions
+  </Card>
+  <Card title="Routing" icon="route" href="/router/guide/routing">
+    Explore TanStack Router features
+  </Card>
+  <Card title="Examples" icon="code" href="https://github.com/TanStack/router/tree/main/examples/vue">
+    Browse Vue Start examples
+  </Card>
+  <Card title="API Reference" icon="book" href="/start/api/vue">
+    View the complete API documentation
+  </Card>
+</CardGroup>

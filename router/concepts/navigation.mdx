@@ -1,0 +1,482 @@
+---
+title: Navigation
+description: Navigate between routes using links and programmatic navigation
+---
+
+TanStack Router provides multiple ways to navigate between routes: declarative links, programmatic navigation, and redirect functions.
+
+## Link Component
+
+The `Link` component provides type-safe navigation with automatic preloading:
+
+```tsx
+import { Link } from '@tanstack/react-router'
+
+function Navigation() {
+  return (
+    <Link to="/posts/$postId" params={{ postId: '123' }}>
+      View Post
+    </Link>
+  )
+}
+```
+
+### Link Props
+
+<ParamField path="to" type="string" required>
+  The destination path. Can be absolute or relative:
+  
+  ```tsx
+  <Link to="/about">About</Link>
+  <Link to="./details">Details</Link>
+  <Link to="../.." >Back Two Levels</Link>
+  ```
+</ParamField>
+
+<ParamField path="params" type="object">
+  Path parameters for the destination route:
+  
+  ```tsx
+  <Link to="/posts/$postId" params={{ postId: '123' }}>
+    View Post
+  </Link>
+  ```
+</ParamField>
+
+<ParamField path="search" type="object | function">
+  Search parameters for the URL. Can be an object or updater function:
+  
+  ```tsx
+  {/* Set search params */}
+  <Link to="/posts" search={{ page: 1, filter: 'recent' }}>
+    Posts
+  </Link>
+  
+  {/* Update existing search params */}
+  <Link to="." search={(prev) => ({ ...prev, page: prev.page + 1 })}>
+    Next Page
+  </Link>
+  ```
+</ParamField>
+
+<ParamField path="hash" type="string">
+  URL hash (without the `#`):
+  
+  ```tsx
+  <Link to="/docs" hash="introduction">
+    Jump to Introduction
+  </Link>
+  ```
+</ParamField>
+
+<ParamField path="state" type="object">
+  History state (not visible in URL):
+  
+  ```tsx
+  <Link to="/posts" state={{ from: 'homepage' }}>
+    Posts
+  </Link>
+  ```
+</ParamField>
+
+<ParamField path="from" type="string">
+  The source route for type-safe relative navigation:
+  
+  ```tsx
+  <Link from="/posts/$postId" to="./edit">
+    Edit Post
+  </Link>
+  ```
+</ParamField>
+
+### Styling Active Links
+
+Use `activeProps` and `inactiveProps` to style links based on active state:
+
+```tsx
+<Link
+  to="/posts"
+  activeProps={{
+    className: 'font-bold text-blue-600',
+    'aria-current': 'page',
+  }}
+  inactiveProps={{
+    className: 'text-gray-600',
+  }}
+>
+  Posts
+</Link>
+```
+
+Or use `activeOptions` to customize when a link is considered active:
+
+```tsx
+<Link
+  to="/posts"
+  activeOptions={{
+    exact: true, // Only active on exact match
+    includeHash: false, // Ignore hash when determining active
+    includeSearch: true, // Include search params in comparison
+  }}
+>
+  Posts
+</Link>
+```
+
+### Preloading
+
+<ParamField path="preload" type="false | 'intent' | 'viewport' | 'render'">
+  Control when to preload the destination route:
+  - `false` - No preloading
+  - `'intent'` - Preload on hover/touch (default)
+  - `'viewport'` - Preload when link enters viewport
+  - `'render'` - Preload immediately when rendered
+  
+  ```tsx
+  <Link to="/posts/$postId" params={{ postId: '123' }} preload="viewport">
+    View Post
+  </Link>
+  ```
+</ParamField>
+
+<ParamField path="preloadDelay" type="number" default="50">
+  Delay in milliseconds before preloading on hover.
+</ParamField>
+
+### Replace Navigation
+
+<ParamField path="replace" type="boolean" default="false">
+  Replace the current history entry instead of pushing a new one:
+  
+  ```tsx
+  <Link to="/posts" replace>
+    View Posts
+  </Link>
+  ```
+</ParamField>
+
+### Disabled Links
+
+```tsx
+<Link to="/posts" disabled={!hasPermission}>
+  Posts
+</Link>
+```
+
+Disabled links render as spans and don't navigate.
+
+## Programmatic Navigation
+
+Use the `useNavigate` hook for programmatic navigation:
+
+```tsx
+import { useNavigate } from '@tanstack/react-router'
+
+function MyComponent() {
+  const navigate = useNavigate()
+  
+  const handleClick = async () => {
+    await navigate({
+      to: '/posts/$postId',
+      params: { postId: '123' },
+      search: { comment: 'abc' },
+    })
+    console.log('Navigation complete')
+  }
+  
+  return <button onClick={handleClick}>View Post</button>
+}
+```
+
+### Navigate Options
+
+The `navigate` function accepts the same options as `Link`:
+
+```tsx
+await navigate({
+  to: '/posts',
+  search: { page: 1 },
+  hash: 'comments',
+  replace: true,
+  state: { from: 'search' },
+})
+```
+
+### Navigate from Loaders
+
+You can also navigate from route loaders:
+
+```tsx
+const postRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/posts/$postId',
+  beforeLoad: async ({ params, navigate }) => {
+    const post = await fetchPost(params.postId)
+    
+    if (post.isDraft) {
+      await navigate({ to: '/drafts/$postId', params })
+    }
+    
+    return { post }
+  },
+})
+```
+
+<Warning>
+  The `navigate` function in loaders is deprecated. Use `redirect()` instead (see below).
+</Warning>
+
+## Redirects
+
+Use the `redirect` function to redirect during data loading:
+
+```tsx
+import { redirect } from '@tanstack/react-router'
+
+const protectedRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/dashboard',
+  beforeLoad: ({ context, location }) => {
+    if (!context.auth.isAuthenticated) {
+      throw redirect({
+        to: '/login',
+        search: { redirect: location.href },
+      })
+    }
+  },
+})
+```
+
+### Route-Specific Redirects
+
+Each route has a `redirect` method for relative redirects:
+
+```tsx
+const postRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/posts/$postId',
+  beforeLoad: ({ params }) => {
+    if (!isValidPostId(params.postId)) {
+      // Relative redirect
+      throw postRoute.redirect({ to: './list' })
+    }
+  },
+})
+```
+
+### Redirect Options
+
+<ParamField path="from" type="string">
+  Source route for relative redirects (set automatically with route.redirect()).
+</ParamField>
+
+<ParamField path="to" type="string" required>
+  Destination path.
+</ParamField>
+
+<ParamField path="params" type="object">
+  Path parameters for the destination.
+</ParamField>
+
+<ParamField path="search" type="object">
+  Search parameters for the destination.
+</ParamField>
+
+<ParamField path="hash" type="string">
+  URL hash for the destination.
+</ParamField>
+
+<ParamField path="replace" type="boolean" default="false">
+  Replace current history entry.
+</ParamField>
+
+<ParamField path="code" type="number">
+  HTTP status code for server-side redirects.
+</ParamField>
+
+## History Navigation
+
+Navigate through browser history:
+
+```tsx
+import { useRouter } from '@tanstack/react-router'
+
+function BackButton() {
+  const router = useRouter()
+  
+  return (
+    <button onClick={() => router.history.back()}>
+      Go Back
+    </button>
+  )
+}
+```
+
+### History Methods
+
+```tsx
+const router = useRouter()
+
+// Navigate back
+router.history.back()
+
+// Navigate forward
+router.history.forward()
+
+// Navigate to specific position
+router.history.go(-2) // Go back 2 pages
+router.history.go(1)  // Go forward 1 page
+```
+
+## Relative Navigation
+
+TanStack Router supports several relative navigation patterns:
+
+### Current Route
+
+```tsx
+// Stay on same route, update search params
+<Link to="." search={{ page: 2 }}>Next Page</Link>
+
+// Navigate to child
+<Link to="./details">View Details</Link>
+```
+
+### Parent Routes
+
+```tsx
+// Navigate to parent
+<Link to="..">Back</Link>
+
+// Navigate to grandparent
+<Link to="../..">Back Two Levels</Link>
+
+// Navigate to sibling
+<Link to="../other">Other Page</Link>
+```
+
+### Type-Safe Relative Navigation
+
+Specify the `from` route for full type safety:
+
+```tsx
+function PostComponent() {
+  return (
+    <Link from="/posts/$postId" to="../..">
+      Back to Home
+    </Link>
+  )
+}
+```
+
+## Router API
+
+Access the router instance for advanced navigation:
+
+```tsx
+import { useRouter } from '@tanstack/react-router'
+
+function Component() {
+  const router = useRouter()
+  
+  // Get current location
+  const location = router.state.location
+  
+  // Build a location
+  const nextLocation = router.buildLocation({
+    to: '/posts',
+    search: { page: 2 },
+  })
+  
+  // Navigate
+  await router.navigate(nextLocation)
+  
+  // Preload a route
+  await router.preloadRoute({
+    to: '/posts/$postId',
+    params: { postId: '123' },
+  })
+}
+```
+
+## View Transitions
+
+Enable smooth transitions between routes:
+
+```tsx
+// Enable globally
+const router = createRouter({
+  routeTree,
+  defaultViewTransition: true,
+})
+
+// Or per-navigation
+await navigate({
+  to: '/posts',
+  viewTransition: true,
+})
+```
+
+Configure transition types:
+
+```tsx
+const router = createRouter({
+  routeTree,
+  defaultViewTransition: {
+    types: ['slide', 'fade'],
+  },
+})
+```
+
+## Scroll Behavior
+
+### Hash Scrolling
+
+Automatically scroll to elements with matching IDs:
+
+```tsx
+<Link to="/docs" hash="getting-started">
+  Getting Started
+</Link>
+```
+
+Customize scroll behavior:
+
+```tsx
+const router = createRouter({
+  routeTree,
+  defaultHashScrollIntoView: {
+    behavior: 'smooth',
+    block: 'start',
+  },
+})
+```
+
+### Scroll Restoration
+
+Enable automatic scroll position restoration:
+
+```tsx
+const router = createRouter({
+  routeTree,
+  scrollRestoration: true,
+  scrollRestorationBehavior: 'smooth',
+})
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Search Params" icon="magnifying-glass" href="./search-params">
+    Manage URL search parameters
+  </Card>
+  <Card title="Path Params" icon="brackets-curly" href="./path-params">
+    Extract and validate path parameters
+  </Card>
+  <Card title="Type Safety" icon="shield-check" href="./type-safety">
+    Configure end-to-end type safety
+  </Card>
+  <Card title="Loaders" icon="download" href="./loaders">
+    Load data before rendering routes
+  </Card>
+</CardGroup>

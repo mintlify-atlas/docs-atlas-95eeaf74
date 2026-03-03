@@ -1,0 +1,288 @@
+---
+title: Server RPC
+description: Create server-side RPC handlers with lazy loading
+---
+
+## createServerRpc
+
+Creates a server-side RPC handler that lazily loads and executes a server function. This is used internally by the build system to create efficient server-side endpoints.
+
+<Note>
+This is a low-level API typically used by the TanStack Start build plugin. Most users should use `createServerFn` instead.
+</Note>
+
+### Basic Usage
+
+```tsx
+import { createServerRpc } from '@tanstack/start-server-core/createServerRpc'
+
+const rpcHandler = createServerRpc(
+  { id: 'my-function', name: 'myFunction', filename: '/src/functions.ts' },
+  async () => {
+    // Lazy load the actual server function implementation
+    const { myFunction } = await import('./functions')
+    return myFunction
+  }
+)
+```
+
+### API Reference
+
+<ParamField path="serverFnMeta" type="ServerFnMeta" required>
+  Metadata about the server function:
+  ```tsx
+  {
+    id: string       // Unique function identifier
+    name: string     // Function name
+    filename: string // Source file path
+  }
+  ```
+</ParamField>
+
+<ParamField path="splitImportFn" type="Function" required>
+  An async function that dynamically imports and returns the server function implementation. This enables code splitting and lazy loading.
+  ```tsx
+  async (...args: any[]) => ServerFunction
+  ```
+</ParamField>
+
+### Return Value
+
+Returns a function with the following properties:
+
+<ParamField path="url" type="string">
+  The URL endpoint for this server function, constructed from `TSS_SERVER_FN_BASE` environment variable and the function ID.
+</ParamField>
+
+<ParamField path="serverFnMeta" type="ServerFnMeta">
+  The metadata object passed during creation.
+</ParamField>
+
+<ParamField path="[TSS_SERVER_FUNCTION]" type="true">
+  Internal marker indicating this is a server function.
+</ParamField>
+
+### How It Works
+
+1. **Build Time**: The build plugin identifies server functions and generates RPC handlers
+2. **Runtime**: When called, the RPC handler lazy loads the actual implementation
+3. **Execution**: The loaded function is executed and its result returned
+
+### Environment Variables
+
+<ParamField path="TSS_SERVER_FN_BASE" type="string">
+  Base URL path for server functions. Defaults to `/api/fn/`. The final URL is constructed as `TSS_SERVER_FN_BASE + functionId`.
+</ParamField>
+
+### Generated Code Example
+
+When you define a server function:
+
+```tsx
+// src/functions.ts
+export const myFunction = createServerFn({ method: 'GET' }).handler(async () => {
+  return { data: 'result' }
+})
+```
+
+The build plugin generates:
+
+```tsx
+// .tanstack/functions-manifest.ts (simplified)
+import { createServerRpc } from '@tanstack/start-server-core/createServerRpc'
+
+export const myFunction = createServerRpc(
+  {
+    id: 'my-function-hash',
+    name: 'myFunction',
+    filename: '/src/functions.ts'
+  },
+  async () => {
+    const mod = await import('/src/functions.ts')
+    return mod.myFunction
+  }
+)
+```
+
+### Lazy Loading Benefits
+
+#### Memory Efficiency
+
+Server functions are only loaded when called, not at startup:
+
+```tsx
+// Heavy server function
+const processBigData = createServerFn().handler(async () => {
+  const bigLib = await import('heavy-library') // Only loaded when needed
+  return bigLib.process()
+})
+
+// RPC handler doesn't load the function until first call
+const rpc = createServerRpc(meta, () => import('./functions'))
+```
+
+#### Code Splitting
+
+Each server function can be in its own chunk:
+
+```tsx
+const rpc1 = createServerRpc(meta1, () => import('./chunk1'))
+const rpc2 = createServerRpc(meta2, () => import('./chunk2'))
+// chunk1 and chunk2 are loaded independently
+```
+
+### Internal Usage
+
+The server handler uses this to look up and execute functions by ID:
+
+```tsx
+import { getServerFnById } from '@tanstack/start-server-core'
+
+// Request comes in for /api/fn/my-function-hash
+const handler = async (request: Request) => {
+  const functionId = extractIdFromUrl(request.url)
+  const serverFn = await getServerFnById(functionId)
+  
+  // serverFn is the result of createServerRpc
+  const result = await serverFn.__executeServer({
+    method: request.method,
+    data: await parseRequestData(request),
+    headers: request.headers
+  })
+  
+  return result
+}
+```
+
+### Comparison with createClientRpc
+
+| Aspect | createServerRpc | createClientRpc |
+|--------|-----------------|------------------|
+| Environment | Server-side only | Client-side only |
+| Purpose | Lazy load server functions | Call server by ID |
+| Import | Dynamic/lazy | Direct |
+| Code Splitting | Enables | Consumes |
+
+### Advanced Example
+
+```tsx
+import { createServerRpc } from '@tanstack/start-server-core/createServerRpc'
+
+// Create RPC with full metadata
+const getUserRpc = createServerRpc(
+  {
+    id: 'get-user-abc123',
+    name: 'getUser',
+    filename: '/src/api/users.ts'
+  },
+  async () => {
+    // Lazy load the implementation
+    const mod = await import('/src/api/users.ts')
+    return mod.getUser
+  }
+)
+
+// Function properties
+console.log(getUserRpc.url) // '/api/fn/get-user-abc123'
+console.log(getUserRpc.serverFnMeta.name) // 'getUser'
+console.log(getUserRpc.serverFnMeta.filename) // '/src/api/users.ts'
+
+// The actual function is loaded on first call
+const result = await getUserRpc('user-123')
+```
+
+### Performance Considerations
+
+#### Cold Starts
+
+First call to a function will be slower due to import:
+
+```tsx
+const rpc = createServerRpc(meta, () => import('./heavy-function'))
+
+// First call: ~100ms (includes import time)
+await rpc()
+
+// Subsequent calls: ~10ms (cached)
+await rpc()
+```
+
+#### Preloading
+
+You can preload functions that you know will be needed:
+
+```tsx
+const rpc = createServerRpc(meta, importFn)
+
+// Preload the function
+await importFn()
+
+// Later calls use cached implementation
+await rpc() // Fast
+```
+
+#### Bundle Size
+
+RPC handlers add minimal overhead:
+
+```tsx
+// Just the RPC handler: ~100 bytes
+const rpc = createServerRpc(meta, importFn)
+
+// vs full function with dependencies: ~50KB
+import { actualFunction } from './big-module'
+```
+
+### Type Safety
+
+<Warning>
+`createServerRpc` does not provide type safety for the function signature. The `splitImportFn` parameter accepts any arguments and returns any value. This is by design for maximum flexibility at the build level.
+</Warning>
+
+For type-safe server functions, use `createServerFn` which preserves full type information.
+
+### Build Plugin Integration
+
+The TanStack Start build plugin automatically:
+
+1. Scans for `createServerFn` usage
+2. Extracts server function implementations
+3. Generates unique IDs and metadata
+4. Creates `createServerRpc` wrappers
+5. Generates a manifest for server-side lookups
+
+### Security
+
+The function ID acts as a secure reference:
+
+```tsx
+// ID is a hash, not predictable
+const rpc = createServerRpc(
+  { id: 'sha256-abc123...', name: 'secretFn', filename: '/src/api.ts' },
+  importFn
+)
+
+// Client can't access server code, only call by ID
+```
+
+### Error Handling
+
+Errors during import or execution are propagated:
+
+```tsx
+const rpc = createServerRpc(meta, async () => {
+  throw new Error('Failed to load function')
+})
+
+try {
+  await rpc()
+} catch (error) {
+  console.error(error) // 'Failed to load function'
+}
+```
+
+### Related
+
+- [Server Functions](/start/api/server-functions) - High-level server function API
+- [Client RPC](/start/api/client-rpc) - Client-side RPC calls
+- [Build Plugin](https://github.com/TanStack/router/tree/main/packages/start-plugin-core) - Generates RPC handlers

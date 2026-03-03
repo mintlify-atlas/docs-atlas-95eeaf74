@@ -1,0 +1,415 @@
+---
+title: Link
+---
+
+# Link API
+
+Components and utilities for type-safe navigation.
+
+## `Link`
+
+A strongly-typed anchor component for declarative navigation.
+
+```tsx
+import { Link } from '@tanstack/react-router'
+
+function Navigation() {
+  return (
+    <Link to="/posts/$postId" params={{ postId: '123' }}>
+      View Post
+    </Link>
+  )
+}
+```
+
+### Props
+
+<ParamField path="to" type="string" required>
+  The destination route path. Can be absolute (`/posts`) or relative (`./edit`, `..`).
+</ParamField>
+
+<ParamField path="params" type="object">
+  Path parameters for the destination route.
+
+  ```tsx
+  <Link to="/posts/$postId" params={{ postId: '123' }}>
+    View Post
+  </Link>
+  ```
+</ParamField>
+
+<ParamField path="search" type="object | function">
+  Search parameters for the destination route. Can be an object or an updater function.
+
+  ```tsx
+  <Link to="/posts" search={{ page: 2, filter: 'active' }}>
+    Page 2
+  </Link>
+
+  {/* Updater function */}
+  <Link to="." search={(prev) => ({ ...prev, page: prev.page + 1 })}>
+    Next Page
+  </Link>
+  ```
+</ParamField>
+
+<ParamField path="hash" type="string | function">
+  The hash fragment for the destination URL.
+
+  ```tsx
+  <Link to="/docs" hash="#installation">
+    Installation
+  </Link>
+  ```
+</ParamField>
+
+<ParamField path="state" type="object | function">
+  State to pass to the destination route.
+
+  ```tsx
+  <Link to="/posts" state={{ from: 'home' }}>
+    Posts
+  </Link>
+  ```
+</ParamField>
+
+<ParamField path="from" type="string">
+  The source route path for relative navigation. Defaults to the current route.
+
+  ```tsx
+  <Link from="/posts" to="/about">
+    About
+  </Link>
+  ```
+</ParamField>
+
+<ParamField path="preload" type="false | 'intent' | 'viewport' | 'render'">
+  Controls route preloading behavior.
+  - `false` - Don't preload
+  - `'intent'` - Preload on hover/focus
+  - `'viewport'` - Preload when link enters viewport
+  - `'render'` - Preload on render
+
+  ```tsx
+  <Link to="/posts" preload="viewport">
+    Posts
+  </Link>
+  ```
+</ParamField>
+
+<ParamField path="preloadDelay" type="number">
+  Delay in milliseconds before preloading on hover/focus.
+
+  ```tsx
+  <Link to="/posts" preload="intent" preloadDelay={100}>
+    Posts
+  </Link>
+  ```
+</ParamField>
+
+<ParamField path="activeProps" type="object | function">
+  Additional props to apply when the link is active.
+
+  ```tsx
+  <Link
+    to="/posts"
+    activeProps={{
+      className: 'font-bold',
+      style: { color: 'blue' },
+    }}
+  >
+    Posts
+  </Link>
+  ```
+</ParamField>
+
+<ParamField path="inactiveProps" type="object | function">
+  Additional props to apply when the link is inactive.
+
+  ```tsx
+  <Link
+    to="/posts"
+    inactiveProps={{
+      className: 'text-gray-500',
+    }}
+  >
+    Posts
+  </Link>
+  ```
+</ParamField>
+
+<ParamField path="activeOptions" type="object">
+  Options for determining when the link is active.
+
+  ```tsx
+  <Link
+    to="/posts"
+    activeOptions={{
+      exact: true,
+      includeSearch: true,
+      includeHash: false,
+    }}
+  >
+    Posts
+  </Link>
+  ```
+
+  <Expandable title="properties">
+    <ParamField path="exact" type="boolean" default="false">
+      If `true`, the link will only be active if the pathname matches exactly.
+    </ParamField>
+
+    <ParamField path="includeSearch" type="boolean" default="true">
+      If `true`, the link's search params must match the current location's search params.
+    </ParamField>
+
+    <ParamField path="includeHash" type="boolean" default="false">
+      If `true`, the link's hash must match the current location's hash.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="disabled" type="boolean">
+  If `true`, the link will be disabled and not navigate.
+
+  ```tsx
+  <Link to="/posts" disabled={!canAccessPosts}>
+    Posts
+  </Link>
+  ```
+</ParamField>
+
+<ParamField path="replace" type="boolean">
+  If `true`, the navigation will replace the current history entry instead of pushing a new one.
+
+  ```tsx
+  <Link to="/posts" replace>
+    Posts
+  </Link>
+  ```
+</ParamField>
+
+<ParamField path="resetScroll" type="boolean">
+  If `true`, the scroll position will be reset to the top of the page on navigation.
+
+  ```tsx
+  <Link to="/posts" resetScroll={false}>
+    Posts
+  </Link>
+  ```
+</ParamField>
+
+<ParamField path="viewTransition" type="boolean">
+  If `true`, the navigation will use the View Transitions API if available.
+
+  ```tsx
+  <Link to="/posts" viewTransition>
+    Posts
+  </Link>
+  ```
+</ParamField>
+
+<ParamField path="mask" type="object">
+  Options for masking the URL (showing a different URL in the address bar).
+
+  ```tsx
+  <Link
+    to="/photos/$photoId"
+    params={{ photoId: '123' }}
+    mask={{
+      to: '/photos',
+    }}
+  >
+    View Photo
+  </Link>
+  ```
+</ParamField>
+
+### Children
+
+The Link component accepts children as React nodes or a render function:
+
+```tsx
+{/* Static children */}
+<Link to="/posts">View Posts</Link>
+
+{/* Render function */}
+<Link to="/posts">
+  {({ isActive, isTransitioning }) => (
+    <span className={isActive ? 'active' : ''}>
+      Posts {isTransitioning && '...'}
+    </span>
+  )}
+</Link>
+```
+
+## `createLink`
+
+Creates a typed Link-like component that preserves TanStack Router's navigation semantics.
+
+```tsx
+import { createLink } from '@tanstack/react-router'
+import { forwardRef } from 'react'
+
+const MyLink = forwardRef<HTMLAnchorElement, any>((props, ref) => {
+  return <a ref={ref} {...props} className={`my-link ${props.className}`} />
+})
+
+const CustomLink = createLink(MyLink)
+
+function Navigation() {
+  return (
+    <CustomLink to="/posts" params={{ postId: '123' }}>
+      View Post
+    </CustomLink>
+  )
+}
+```
+
+### Parameters
+
+<ParamField path="Comp" type="Component" required>
+  The host component to render (e.g., a design-system Link/Button).
+</ParamField>
+
+### Returns
+
+<ResponseField name="LinkComponent" type="Component">
+  A router-aware component with the same API as `Link`.
+</ResponseField>
+
+## `useLinkProps`
+
+Build anchor-like props for declarative navigation and preloading.
+
+```tsx
+import { useLinkProps } from '@tanstack/react-router'
+
+function CustomLink({ to, ...props }) {
+  const linkProps = useLinkProps({ to })
+  return <a {...linkProps} {...props} />
+}
+```
+
+### Parameters
+
+<ParamField path="options" type="UseLinkPropsOptions" required>
+  Link options (same as Link props).
+
+  Includes all the same options as `Link`: `to`, `params`, `search`, `hash`, `state`, `preload`, `activeProps`, etc.
+</ParamField>
+
+<ParamField path="forwardedRef" type="React.ForwardedRef<Element>">
+  Optional forwarded ref for the link element.
+</ParamField>
+
+### Returns
+
+<ResponseField name="props" type="React.ComponentPropsWithRef<'a'>">
+  React anchor props suitable for `<a>` or custom components, including:
+  - `href` - The computed URL
+  - `onClick` - Navigation handler
+  - `onMouseEnter`, `onFocus`, etc. - Preload handlers
+  - `data-status` - 'active' if the link is active
+  - `aria-current` - 'page' if the link is active
+  - Additional props from `activeProps` or `inactiveProps`
+</ResponseField>
+
+## `linkOptions`
+
+Validate and reuse navigation options for `Link`, `navigate` or `redirect`.
+
+```tsx
+import { linkOptions } from '@tanstack/react-router'
+
+const postLinkOpts = linkOptions({
+  to: '/posts/$postId',
+  params: { postId: '123' },
+  search: { tab: 'comments' },
+})
+
+function Navigation() {
+  return <Link {...postLinkOpts}>View Post</Link>
+}
+
+function SomeComponent() {
+  const navigate = useNavigate()
+  const goToPost = () => navigate(postLinkOpts)
+  return <button onClick={goToPost}>Go to Post</button>
+}
+```
+
+### Parameters
+
+<ParamField path="options" type="LinkOptions" required>
+  Literal options object for navigation.
+</ParamField>
+
+### Returns
+
+<ResponseField name="options" type="LinkOptions">
+  The same options object, but typed for later spreading into Link, navigate, or redirect.
+</ResponseField>
+
+## Navigation Behavior
+
+### Active State
+
+Links automatically detect when they match the current route and apply active styling:
+
+```tsx
+<Link
+  to="/posts"
+  activeProps={{ className: 'font-bold text-blue-500' }}
+  inactiveProps={{ className: 'text-gray-500' }}
+>
+  Posts
+</Link>
+```
+
+The link will have `data-status="active"` and `aria-current="page"` attributes when active.
+
+### Preloading
+
+Links can preload routes before navigation:
+
+```tsx
+{/* Preload on hover/focus */}
+<Link to="/posts" preload="intent">
+  Posts
+</Link>
+
+{/* Preload when visible */}
+<Link to="/posts" preload="viewport">
+  Posts
+</Link>
+
+{/* Preload on render */}
+<Link to="/posts" preload="render">
+  Posts
+</Link>
+```
+
+### Relative Navigation
+
+```tsx
+{/* Navigate to parent */}
+<Link to="..">
+  Back
+</Link>
+
+{/* Navigate to sibling */}
+<Link to="../other">
+  Other
+</Link>
+
+{/* Navigate to child */}
+<Link to="./edit">
+  Edit
+</Link>
+
+{/* Stay on current route, update search */}
+<Link to="." search={{ page: 2 }}>
+  Page 2
+</Link>
+```

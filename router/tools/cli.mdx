@@ -1,0 +1,402 @@
+---
+title: CLI
+---
+
+# CLI
+
+The TanStack Router CLI (`tsr`) provides command-line tools for generating and managing your routes without needing a bundler plugin.
+
+## Installation
+
+```bash
+npm install -D @tanstack/router-cli
+```
+
+Or install globally:
+
+```bash
+npm install -g @tanstack/router-cli
+```
+
+## Commands
+
+The CLI provides two main commands:
+
+### `generate`
+
+Generates the route tree for your project once.
+
+```bash
+tsr generate
+```
+
+This command:
+
+1. Reads your configuration from `tsr.config.json`
+2. Scans your routes directory
+3. Generates the route tree file
+4. Exits when complete
+
+### `watch`
+
+Continuously watches for route changes and regenerates the route tree automatically.
+
+```bash
+tsr watch
+```
+
+This command:
+
+1. Reads your configuration from `tsr.config.json`
+2. Scans your routes directory
+3. Generates the route tree file
+4. Watches for file changes
+5. Regenerates the route tree when routes are added, modified, or deleted
+6. Keeps running until you stop it
+
+## Configuration
+
+Create a `tsr.config.json` file in your project root:
+
+```json
+{
+  "routesDirectory": "./src/routes",
+  "generatedRouteTree": "./src/routeTree.gen.ts",
+  "quoteStyle": "single",
+  "semicolons": false,
+  "disableTypes": false
+}
+```
+
+## Configuration Options
+
+### Route Generation
+
+#### `routesDirectory`
+- **Type:** `string`
+- **Default:** `'./src/routes'`
+- The directory where your route files are located.
+
+#### `generatedRouteTree`
+- **Type:** `string`
+- **Default:** `'./src/routeTree.gen.ts'`
+- The file where the generated route tree will be written.
+
+#### `routeFilePrefix`
+- **Type:** `string`
+- **Optional**
+- A prefix to require for all route files.
+
+#### `routeFileIgnorePrefix`
+- **Type:** `string`
+- **Default:** `'-'`
+- Files starting with this prefix will be ignored during route generation.
+
+#### `routeFileIgnorePattern`
+- **Type:** `string`
+- **Optional**
+- A regex pattern to ignore specific route files.
+
+### Code Style
+
+#### `quoteStyle`
+- **Type:** `'single' | 'double'`
+- **Default:** `'single'`
+- Quote style for generated code.
+
+#### `semicolons`
+- **Type:** `boolean`
+- **Default:** `false`
+- Whether to include semicolons in generated code.
+
+#### `enableRouteTreeFormatting`
+- **Type:** `boolean`
+- **Default:** `true`
+- Format the generated route tree file with Prettier.
+
+#### `routeTreeFileHeader`
+- **Type:** `string[]`
+- **Default:** `['/* eslint-disable */', '// @ts-nocheck', '// noinspection JSUnusedGlobalSymbols']`
+- Lines to add at the top of the generated route tree file.
+
+### TypeScript
+
+#### `disableTypes`
+- **Type:** `boolean`
+- **Default:** `false`
+- Disable TypeScript type generation. When `true`, generates a `.js` file instead of `.ts`.
+
+### Advanced Options
+
+#### `target`
+- **Type:** `'react' | 'solid' | 'vue'`
+- **Default:** `'react'`
+- The framework target for route generation.
+
+#### `disableLogging`
+- **Type:** `boolean`
+- **Default:** `false`
+- Disable CLI logging output.
+
+#### `autoCodeSplitting`
+- **Type:** `boolean`
+- **Optional**
+- Enable automatic code splitting for generated routes.
+
+#### `addExtensions`
+- **Type:** `boolean | string`
+- **Default:** `false`
+- Add file extensions to route imports.
+
+#### `indexToken`
+- **Type:** `string | RegExp | { regex: string, flags?: string }`
+- **Default:** `'index'`
+- Token to identify index routes.
+
+#### `routeToken`
+- **Type:** `string | RegExp | { regex: string, flags?: string }`
+- **Default:** `'route'`
+- Token to identify route files.
+
+## Example Configurations
+
+### Basic Configuration
+
+```json
+{
+  "routesDirectory": "./src/routes",
+  "generatedRouteTree": "./src/routeTree.gen.ts"
+}
+```
+
+### TypeScript Disabled
+
+```json
+{
+  "routesDirectory": "./src/routes",
+  "generatedRouteTree": "./src/routeTree.gen.js",
+  "disableTypes": true
+}
+```
+
+### Custom File Patterns
+
+```json
+{
+  "routesDirectory": "./src/pages",
+  "generatedRouteTree": "./src/routeTree.gen.ts",
+  "routeFilePrefix": "page",
+  "routeFileIgnorePrefix": "_",
+  "routeFileIgnorePattern": ".*\\.test\\.tsx?$"
+}
+```
+
+### Double Quotes and Semicolons
+
+```json
+{
+  "routesDirectory": "./src/routes",
+  "generatedRouteTree": "./src/routeTree.gen.ts",
+  "quoteStyle": "double",
+  "semicolons": true
+}
+```
+
+### Solid.js Project
+
+```json
+{
+  "target": "solid",
+  "routesDirectory": "./src/routes",
+  "generatedRouteTree": "./src/routeTree.gen.ts"
+}
+```
+
+### Custom Route Tokens
+
+```json
+{
+  "routesDirectory": "./src/routes",
+  "generatedRouteTree": "./src/routeTree.gen.ts",
+  "indexToken": "_index",
+  "routeToken": "_route"
+}
+```
+
+## npm Scripts
+
+Add CLI commands to your `package.json`:
+
+```json
+{
+  "scripts": {
+    "routes:generate": "tsr generate",
+    "routes:watch": "tsr watch",
+    "dev": "tsr watch & vite dev",
+    "build": "tsr generate && vite build"
+  }
+}
+```
+
+Then run:
+
+```bash
+npm run routes:generate
+npm run routes:watch
+```
+
+## Usage Patterns
+
+### Development Workflow
+
+1. Start the CLI watcher:
+   ```bash
+   tsr watch
+   ```
+
+2. In another terminal, start your dev server:
+   ```bash
+   npm run dev
+   ```
+
+3. Add/modify routes in your routes directory
+4. The CLI automatically regenerates the route tree
+5. Your dev server hot-reloads with the new routes
+
+### Build Workflow
+
+Generate routes before building:
+
+```bash
+tsr generate && npm run build
+```
+
+Or use a combined script:
+
+```json
+{
+  "scripts": {
+    "build": "tsr generate && vite build"
+  }
+}
+```
+
+### CI/CD
+
+In CI environments, use the `generate` command:
+
+```yaml
+# .github/workflows/build.yml
+steps:
+  - name: Install dependencies
+    run: npm ci
+  
+  - name: Generate routes
+    run: npm run routes:generate
+  
+  - name: Build
+    run: npm run build
+```
+
+## How It Works
+
+The CLI uses the same route generation logic as the bundler plugins:
+
+1. **Configuration**: Reads `tsr.config.json` from your project root
+2. **Scanning**: Scans your `routesDirectory` for route files
+3. **Generation**: Generates a typed route tree file
+4. **Watching** (watch mode only): Uses `chokidar` to watch for file changes
+5. **Regeneration**: Automatically regenerates on file create/update/delete events
+
+## When to Use the CLI
+
+### Use the CLI when:
+
+- You're not using a bundler plugin
+- You want explicit control over route generation
+- You're working in a monorepo and need independent route generation
+- You're integrating with custom build tools
+- You prefer separate processes for route generation and bundling
+
+### Use a plugin instead when:
+
+- You're already using Vite, Webpack, ESBuild, or Rspack
+- You want automatic integration with your bundler
+- You need code splitting features
+- You want zero-config setup
+
+## Troubleshooting
+
+### Command Not Found
+
+If `tsr` is not found:
+
+1. Make sure `@tanstack/router-cli` is installed
+2. Use `npx tsr` instead of `tsr`
+3. Or add it to your `package.json` scripts
+
+### Configuration Not Found
+
+The CLI looks for `tsr.config.json` in the current directory. Make sure:
+
+1. The file exists in your project root
+2. The JSON is valid (use a JSON validator)
+3. You're running the command from the correct directory
+
+### Routes Not Generated
+
+If routes aren't being generated:
+
+1. Check that `routesDirectory` exists and has route files
+2. Verify the path is correct (relative to project root)
+3. Check file permissions
+4. Look for error messages in the CLI output
+
+### Watch Mode Not Detecting Changes
+
+If watch mode isn't detecting changes:
+
+1. Make sure you're editing files inside `routesDirectory`
+2. Check that files don't match `routeFileIgnorePattern`
+3. Restart the watch command
+4. On some systems, watch limits may need adjustment
+
+### Generated File Has Wrong Extension
+
+If your generated file has the wrong extension:
+
+- Check `disableTypes` setting
+- When `disableTypes: true`, the CLI generates `.js` files
+- When `disableTypes: false`, the CLI generates `.ts` files
+
+## Advanced Usage
+
+### Programmatic Usage
+
+You can use the CLI programmatically in your own scripts:
+
+```ts
+import { generate } from '@tanstack/router-cli'
+import { getConfig } from '@tanstack/router-generator'
+
+const config = getConfig()
+await generate(config, process.cwd())
+```
+
+Or use the watch functionality:
+
+```ts
+import { watch } from '@tanstack/router-cli'
+
+watch(process.cwd())
+```
+
+### Custom Config Location
+
+While the CLI looks for `tsr.config.json` in the current directory, you can work around this by changing directories:
+
+```bash
+cd my-project && tsr generate
+```
+
+Or use programmatic usage with a custom config path.

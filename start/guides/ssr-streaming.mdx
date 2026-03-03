@@ -1,0 +1,453 @@
+---
+title: SSR Streaming
+---
+
+# SSR Streaming
+
+TanStack Start supports streaming Server-Side Rendering (SSR), enabling progressive rendering of your application while data loads. This improves perceived performance by showing content to users faster.
+
+## What is SSR Streaming?
+
+SSR Streaming sends HTML to the browser progressively as it's generated, rather than waiting for the entire page to render. Benefits include:
+
+- **Faster Time to First Byte (TTFB)**: Users see content sooner
+- **Progressive Enhancement**: Critical content loads first, deferred content follows
+- **Better User Experience**: Loading states are more natural and responsive
+- **Optimal Resource Utilization**: Server and client work in parallel
+
+## How It Works
+
+TanStack Start streams the initial HTML shell, then progressively hydrates deferred data as it becomes available. The framework automatically handles the complexity of streaming serialization.
+
+## Basic Streaming Setup
+
+<Steps>
+
+<Step>
+
+### Configure Stream Handler
+
+In your server entry file, use the streaming handler:
+
+```tsx
+// src/server.ts
+import { createStartHandler, defaultStreamHandler } from '@tanstack/react-start/server'
+
+export default createStartHandler({
+  handler: defaultStreamHandler
+})
+```
+
+The `defaultStreamHandler` automatically enables streaming for your entire application.
+
+</Step>
+
+<Step>
+
+### Stream Data from Server Functions
+
+Return `ReadableStream` from server functions to stream data:
+
+```tsx
+import { createServerFn } from '@tanstack/react-start'
+
+const streamNumbers = createServerFn().handler(async () => {
+  return new ReadableStream({
+    async start(controller) {
+      for (let i = 0; i < 10; i++) {
+        // Simulate async work
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
+        // Enqueue typed chunks
+        controller.enqueue({ number: i })
+      }
+      controller.close()
+    }
+  })
+})
+```
+
+</Step>
+
+<Step>
+
+### Consume Streams in Components
+
+Use the streamed data in your React components:
+
+```tsx
+import { useEffect, useState } from 'react'
+import { createFileRoute } from '@tanstack/react-router'
+
+export const Route = createFileRoute('/streaming')({
+  component: StreamingComponent
+})
+
+function StreamingComponent() {
+  const [numbers, setNumbers] = useState([])
+  
+  useEffect(() => {
+    streamNumbers().then(async (stream) => {
+      const reader = stream.getReader()
+      
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        
+        setNumbers(prev => [...prev, value.number])
+      }
+    })
+  }, [])
+  
+  return (
+    <div>
+      <h1>Streaming Numbers</h1>
+      {numbers.map(n => <div key={n}>{n}</div>)}
+    </div>
+  )
+}
+```
+
+</Step>
+
+</Steps>
+
+## Async Generator Functions
+
+Use async generators for cleaner streaming code:
+
+```tsx
+import { createServerFn } from '@tanstack/react-start'
+import { z } from 'zod'
+
+const messageSchema = z.object({
+  content: z.string(),
+  timestamp: z.number()
+})
+
+type Message = z.infer<typeof messageSchema>
+
+const streamMessages = createServerFn().handler(
+  async function* () {
+    const messages = await fetchMessages()
+    
+    for (const msg of messages) {
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      // Yield typed chunks
+      yield messageSchema.parse(msg)
+    }
+  }
+)
+
+// Consume with for-await-of
+function MessageList() {
+  const [messages, setMessages] = useState<Message[]>([])
+  
+  useEffect(() => {
+    (async () => {
+      const stream = await streamMessages()
+      
+      for await (const msg of stream) {
+        // msg is typed as Message
+        setMessages(prev => [...prev, msg])
+      }
+    })()
+  }, [])
+  
+  return (
+    <ul>
+      {messages.map(msg => (
+        <li key={msg.timestamp}>{msg.content}</li>
+      ))}
+    </ul>
+  )
+}
+```
+
+## Deferred Data Loading
+
+Defer non-critical data to improve initial page load:
+
+```tsx
+import { createFileRoute } from '@tanstack/react-router'
+import { createServerFn } from '@tanstack/react-start'
+
+const getCriticalData = createServerFn().handler(async () => {
+  // Fast, critical data
+  return { title: 'Dashboard', user: await getUser() }
+})
+
+const getDeferredData = createServerFn().handler(async () => {
+  // Slower, deferred data
+  await new Promise(resolve => setTimeout(resolve, 2000))
+  return { stats: await getStats(), activity: await getActivity() }
+})
+
+export const Route = createFileRoute('/dashboard')(
+  {
+    loader: async () => {
+      return {
+        critical: await getCriticalData(),
+        // Don't await - this will stream in later
+        deferred: getDeferredData()
+      }
+    },
+    component: DashboardComponent
+  }
+)
+
+function DashboardComponent() {
+  const { critical, deferred } = Route.useLoaderData()
+  const [deferredData, setDeferredData] = useState(null)
+  
+  useEffect(() => {
+    deferred.then(setDeferredData)
+  }, [deferred])
+  
+  return (
+    <div>
+      {/* Critical content renders immediately */}
+      <h1>{critical.title}</h1>
+      <UserInfo user={critical.user} />
+      
+      {/* Deferred content shows loading state */}
+      {deferredData ? (
+        <DeferredContent data={deferredData} />
+      ) : (
+        <LoadingSpinner />
+      )}
+    </div>
+  )
+}
+```
+
+## Streaming with Suspense
+
+Combine streaming with React Suspense for declarative loading states:
+
+```tsx
+import { Suspense } from 'react'
+import { createFileRoute } from '@tanstack/react-router'
+import { createServerFn } from '@tanstack/react-start'
+
+const getSlowData = createServerFn().handler(async () => {
+  await new Promise(resolve => setTimeout(resolve, 2000))
+  return { data: 'Loaded!' }
+})
+
+export const Route = createFileRoute('/suspense')(
+  {
+    component: SuspenseComponent
+  }
+)
+
+function SuspenseComponent() {
+  return (
+    <div>
+      <h1>Page with Suspense</h1>
+      
+      {/* This content renders immediately */}
+      <FastContent />
+      
+      {/* This content suspends until data loads */}
+      <Suspense fallback={<LoadingSpinner />}>
+        <SlowContent />
+      </Suspense>
+    </div>
+  )
+}
+
+function SlowContent() {
+  // This suspends until data is ready
+  const data = use(getSlowData())
+  
+  return <div>{data.data}</div>
+}
+```
+
+## Multiplexed Streams
+
+Stream multiple data sources simultaneously:
+
+```tsx
+import { createServerFn } from '@tanstack/react-start'
+
+const getMultiplexedData = createServerFn().handler(async () => {
+  // Create multiple streams
+  const userStream = new ReadableStream({
+    start(controller) {
+      // Stream user data
+      controller.enqueue({ type: 'user', data: user })
+      controller.close()
+    }
+  })
+  
+  const postsStream = new ReadableStream({
+    async start(controller) {
+      const posts = await fetchPosts()
+      for (const post of posts) {
+        controller.enqueue({ type: 'post', data: post })
+      }
+      controller.close()
+    }
+  })
+  
+  // Return both streams
+  return { userStream, postsStream }
+})
+
+function MultiplexedComponent() {
+  const [user, setUser] = useState(null)
+  const [posts, setPosts] = useState([])
+  
+  useEffect(() => {
+    getMultiplexedData().then(async ({ userStream, postsStream }) => {
+      // Read user stream
+      const userReader = userStream.getReader()
+      const { value: userData } = await userReader.read()
+      setUser(userData.data)
+      
+      // Read posts stream
+      const postsReader = postsStream.getReader()
+      while (true) {
+        const { done, value } = await postsReader.read()
+        if (done) break
+        setPosts(prev => [...prev, value.data])
+      }
+    })
+  }, [])
+  
+  return (
+    <div>
+      {user && <UserCard user={user} />}
+      {posts.map(post => <PostCard key={post.id} post={post} />)}
+    </div>
+  )
+}
+```
+
+## Error Handling in Streams
+
+Handle errors gracefully during streaming:
+
+```tsx
+import { createServerFn } from '@tanstack/react-start'
+
+const streamWithErrors = createServerFn().handler(async () => {
+  return new ReadableStream({
+    async start(controller) {
+      try {
+        for (let i = 0; i < 10; i++) {
+          if (i === 5) {
+            throw new Error('Stream error at index 5')
+          }
+          controller.enqueue({ index: i })
+        }
+        controller.close()
+      } catch (error) {
+        controller.error(error)
+      }
+    }
+  })
+})
+
+function StreamWithErrorHandling() {
+  const [data, setData] = useState([])
+  const [error, setError] = useState(null)
+  
+  useEffect(() => {
+    streamWithErrors()
+      .then(async (stream) => {
+        const reader = stream.getReader()
+        
+        try {
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            setData(prev => [...prev, value])
+          }
+        } catch (err) {
+          setError(err.message)
+        }
+      })
+      .catch(setError)
+  }, [])
+  
+  if (error) {
+    return <div>Error: {error}</div>
+  }
+  
+  return <div>{data.map(d => <div key={d.index}>{d.index}</div>)}</div>
+}
+```
+
+## Performance Optimization
+
+### Chunk Size Control
+
+Control how much data is sent in each chunk:
+
+```tsx
+const streamOptimized = createServerFn().handler(async () => {
+  return new ReadableStream({
+    async start(controller) {
+      const CHUNK_SIZE = 10
+      const data = await fetchLargeDataset()
+      
+      for (let i = 0; i < data.length; i += CHUNK_SIZE) {
+        const chunk = data.slice(i, i + CHUNK_SIZE)
+        controller.enqueue(chunk)
+        
+        // Allow other operations to proceed
+        await new Promise(resolve => setImmediate(resolve))
+      }
+      
+      controller.close()
+    }
+  })
+})
+```
+
+### Backpressure Handling
+
+Handle slow consumers gracefully:
+
+```tsx
+const streamWithBackpressure = createServerFn().handler(async () => {
+  return new ReadableStream(
+    {
+      async start(controller) {
+        for (let i = 0; i < 1000; i++) {
+          controller.enqueue({ index: i })
+          
+          // Check if we should slow down
+          if (controller.desiredSize <= 0) {
+            await new Promise(resolve => setTimeout(resolve, 100))
+          }
+        }
+        controller.close()
+      }
+    },
+    // Set high water mark
+    { highWaterMark: 10 }
+  )
+})
+```
+
+## Best Practices
+
+- **Stream critical content first**: Prioritize above-the-fold content
+- **Use typed streams**: Define schemas for streamed data chunks
+- **Handle errors**: Always implement error handling in streams
+- **Monitor performance**: Track streaming metrics in production
+- **Test with slow connections**: Verify behavior on poor networks
+- **Implement timeouts**: Set reasonable timeouts for stream operations
+- **Use Suspense boundaries**: Isolate streaming components
+- **Cancel streams**: Clean up streams when components unmount
+
+## Learn More
+
+- [Server Functions](/start/guides/server-functions)
+- [Middleware](/start/guides/middleware)
+- [Deployment](/start/guides/deployment)

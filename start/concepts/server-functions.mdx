@@ -1,0 +1,485 @@
+---
+title: Server Functions
+description: Execute server-side logic from your client components with type-safe server functions
+---
+
+Server functions allow you to write server-side code that can be called directly from your client components with full type safety. They provide a seamless bridge between client and server, handling serialization, HTTP requests, and error handling automatically.
+
+## What Are Server Functions?
+
+Server functions are functions that execute only on the server but can be called from anywhere in your application. They're ideal for:
+
+- Database queries
+- API calls to third-party services
+- File system operations
+- Authentication logic
+- Any operation that requires server-side secrets or resources
+
+## Creating a Server Function
+
+Use `createServerFn` to define a server function:
+
+```tsx app/routes/posts.tsx
+import { createServerFn } from '@tanstack/start-client-core'
+
+const getPost = createServerFn()
+  .method('GET')
+  .inputValidator((data: { id: string }) => data)
+  .handler(async ({ data }) => {
+    // This code ONLY runs on the server
+    const post = await db.posts.findById(data.id)
+    return post
+  })
+
+export const Route = createFileRoute('/posts')({
+  component: Posts,
+})
+
+function Posts() {
+  const [post, setPost] = React.useState(null)
+
+  const loadPost = async () => {
+    // Call server function from client
+    const result = await getPost({ data: { id: '123' } })
+    setPost(result)
+  }
+
+  return (
+    <div>
+      <button onClick={loadPost}>Load Post</button>
+      {post && <div>{post.title}</div>}
+    </div>
+  )
+}
+```
+
+## HTTP Methods
+
+Server functions support `GET` and `POST` methods:
+
+### GET Requests
+
+Best for reading data without side effects:
+
+```tsx
+const getPosts = createServerFn()
+  .method('GET') // Default method
+  .handler(async () => {
+    return await db.posts.findAll()
+  })
+
+// Call it
+const posts = await getPosts()
+```
+
+GET requests serialize data in the URL query string. There's a 1MB payload size limit for GET requests.
+
+### POST Requests
+
+Best for mutations and operations with side effects:
+
+```tsx
+const createPost = createServerFn()
+  .method('POST')
+  .handler(async ({ data }) => {
+    const post = await db.posts.create(data)
+    return post
+  })
+
+// Call it
+const newPost = await createPost({ 
+  data: { title: 'Hello', content: 'World' } 
+})
+```
+
+POST requests send data in the request body as JSON.
+
+## Input Validation
+
+Validate input data with the `inputValidator` method:
+
+### Using Zod
+
+```tsx
+import { z } from 'zod'
+import { createServerFn } from '@tanstack/start-client-core'
+
+const createUser = createServerFn()
+  .method('POST')
+  .inputValidator(
+    z.object({
+      email: z.string().email(),
+      name: z.string().min(2),
+    })
+  )
+  .handler(async ({ data }) => {
+    // data is fully typed and validated
+    const user = await db.users.create(data)
+    return user
+  })
+```
+
+### Custom Validation
+
+```tsx
+const updatePost = createServerFn()
+  .method('POST')
+  .inputValidator((data: unknown) => {
+    if (!data || typeof data !== 'object') {
+      throw new Error('Invalid input')
+    }
+    if (!('id' in data) || typeof data.id !== 'string') {
+      throw new Error('ID is required')
+    }
+    return data as { id: string; title?: string }
+  })
+  .handler(async ({ data }) => {
+    return await db.posts.update(data.id, data)
+  })
+```
+
+## Middleware
+
+Add middleware for cross-cutting concerns like authentication, logging, and context:
+
+### Authentication Middleware
+
+```tsx
+import { createMiddleware } from '@tanstack/start-client-core'
+
+const authMiddleware = createMiddleware()
+  .server(async ({ next, context }) => {
+    const session = await getSession()
+    if (!session) {
+      throw new Error('Unauthorized')
+    }
+    return next({ context: { user: session.user } })
+  })
+
+const deletePost = createServerFn()
+  .method('POST')
+  .middleware([authMiddleware])
+  .handler(async ({ data, context }) => {
+    // context.user is available from middleware
+    await db.posts.delete(data.id, context.user.id)
+    return { success: true }
+  })
+```
+
+### Logging Middleware
+
+```tsx
+const loggingMiddleware = createMiddleware()
+  .server(async ({ next, serverFnMeta }) => {
+    console.log(`Calling: ${serverFnMeta.name}`)
+    const start = Date.now()
+    const result = await next()
+    console.log(`Completed in ${Date.now() - start}ms`)
+    return result
+  })
+```
+
+### Global Middleware
+
+Apply middleware to all server functions:
+
+```tsx app/start.ts
+import { createStart } from '@tanstack/react-start-client-core'
+
+const start = createStart({
+  functionMiddleware: [
+    loggingMiddleware,
+    authMiddleware,
+  ],
+})
+
+export default start
+```
+
+## Server Context
+
+Access request context within server functions:
+
+```tsx
+import { getRequest, getCookie } from '@tanstack/react-start-server'
+
+const getCurrentUser = createServerFn()
+  .method('GET')
+  .handler(async () => {
+    const request = getRequest()
+    const sessionId = getCookie('session-id')
+    const user = await db.users.findBySession(sessionId)
+    return user
+  })
+```
+
+Available context utilities:
+
+- `getRequest()` - Get the current request object
+- `getRequestHeaders()` - Get request headers
+- `getCookie(name)` - Get a cookie value
+- `setCookie(name, value, options)` - Set a cookie
+- `getSession(config)` - Get session data
+- `setResponseHeader(name, value)` - Set response headers
+- `setResponseStatus(code, text)` - Set response status
+
+## How Server Functions Work
+
+Under the hood, TanStack Start transforms server functions into RPC endpoints:
+
+### 1. Compilation
+
+During build, the bundler extracts server function bodies into separate endpoints:
+
+```tsx
+// Your code
+const getPost = createServerFn().handler(async ({ data }) => {
+  return await db.posts.find(data.id)
+})
+
+// Becomes (simplified)
+// Server: Endpoint at /_server/fn-abc123
+async function handler_abc123({ data }) {
+  return await db.posts.find(data.id)
+}
+
+// Client: RPC stub
+const getPost = async ({ data }) => {
+  return fetch('/_server/fn-abc123', {
+    method: 'POST',
+    body: JSON.stringify(data)
+  })
+}
+```
+
+### 2. Request Handling
+
+When called from the client:
+
+1. Client serializes input with `seroval` for cross-platform serialization
+2. HTTP request sent to `/_server/{functionId}`
+3. Server receives request in `handleServerAction` (from `server-functions-handler.ts`)
+4. Input validated with `inputValidator`
+5. Middleware chain executes
+6. Handler function runs
+7. Result serialized and returned
+
+### 3. Serialization
+
+TanStack Start uses [seroval](https://github.com/lxsmnsyc/seroval) for serialization, supporting:
+
+- Primitives (string, number, boolean, null, undefined)
+- Objects and arrays
+- Dates
+- RegExp
+- Map and Set
+- Typed arrays
+- Custom serialization adapters
+
+```tsx
+const getDate = createServerFn().handler(async () => {
+  return new Date() // Automatically serialized and deserialized
+})
+
+const date = await getDate() // date is a Date object on client
+```
+
+## FormData Support
+
+Server functions work with HTML forms:
+
+```tsx
+const uploadImage = createServerFn()
+  .method('POST')
+  .handler(async ({ data }) => {
+    // data is FormData
+    const file = data.get('image') as File
+    const buffer = await file.arrayBuffer()
+    await saveFile(buffer)
+    return { success: true }
+  })
+
+function UploadForm() {
+  return (
+    <form
+      onSubmit={async (e) => {
+        e.preventDefault()
+        const formData = new FormData(e.currentTarget)
+        await uploadImage({ data: formData })
+      }}
+    >
+      <input type="file" name="image" />
+      <button type="submit">Upload</button>
+    </form>
+  )
+}
+```
+
+## Error Handling
+
+Handle errors gracefully:
+
+```tsx
+const riskyOperation = createServerFn()
+  .method('POST')
+  .handler(async ({ data }) => {
+    try {
+      return await db.operations.execute(data)
+    } catch (error) {
+      console.error('Operation failed:', error)
+      throw new Error('Failed to execute operation')
+    }
+  })
+
+// Client-side error handling
+try {
+  const result = await riskyOperation({ data: { id: '123' } })
+} catch (error) {
+  console.error('Server function error:', error)
+  // Handle error in UI
+}
+```
+
+## Streaming Responses
+
+Server functions support streaming for real-time data:
+
+```tsx
+const streamLogs = createServerFn()
+  .method('GET')
+  .handler(async function* () {
+    // Generator function for streaming
+    for await (const log of getLogStream()) {
+      yield log
+    }
+  })
+
+// Client consumes stream
+for await (const log of streamLogs()) {
+  console.log(log)
+}
+```
+
+## Type Safety
+
+Server functions are fully type-safe:
+
+```tsx
+const getUser = createServerFn()
+  .method('GET')
+  .inputValidator(z.object({ id: z.string() }))
+  .handler(async ({ data }) => {
+    // data is inferred as { id: string }
+    return await db.users.find(data.id)
+  })
+
+// TypeScript enforces correct usage
+const user = await getUser({ data: { id: '123' } }) // ✓
+const invalid = await getUser({ data: { id: 123 } })   // ✗ Type error
+const missing = await getUser()                         // ✗ Type error
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Keep server functions focused">
+    Each server function should do one thing well:
+    
+    ```tsx
+    // Good: Focused function
+    const getPost = createServerFn().handler(async ({ data }) => {
+      return await db.posts.find(data.id)
+    })
+    
+    // Avoid: Too many responsibilities
+    const doEverything = createServerFn().handler(async ({ data }) => {
+      const post = await db.posts.find(data.id)
+      const user = await db.users.find(post.authorId)
+      await logView(post.id)
+      await sendEmail(user.email)
+      // ...
+    })
+    ```
+  </Accordion>
+
+  <Accordion title="Use appropriate HTTP methods">
+    - Use `GET` for reading data
+    - Use `POST` for mutations
+    
+    ```tsx
+    // Reading data
+    const getPosts = createServerFn().method('GET').handler(...)
+    
+    // Creating/updating data
+    const createPost = createServerFn().method('POST').handler(...)
+    ```
+  </Accordion>
+
+  <Accordion title="Validate all inputs">
+    Always validate input data to prevent security issues:
+    
+    ```tsx
+    const updateUser = createServerFn()
+      .method('POST')
+      .inputValidator(z.object({
+        id: z.string().uuid(),
+        name: z.string().min(1).max(100),
+      }))
+      .handler(async ({ data }) => {
+        // Safe to use validated data
+      })
+    ```
+  </Accordion>
+
+  <Accordion title="Handle errors appropriately">
+    Don't expose sensitive information in errors:
+    
+    ```tsx
+    .handler(async ({ data }) => {
+      try {
+        return await db.query(data)
+      } catch (error) {
+        // Log full error server-side
+        console.error('Database error:', error)
+        // Return safe message to client
+        throw new Error('Failed to fetch data')
+      }
+    })
+    ```
+  </Accordion>
+
+  <Accordion title="Use middleware for cross-cutting concerns">
+    Keep handlers clean by extracting common logic:
+    
+    ```tsx
+    const authMiddleware = createMiddleware().server(async ({ next }) => {
+      const user = await authenticate()
+      return next({ context: { user } })
+    })
+    
+    // Reuse across functions
+    const deletePost = createServerFn()
+      .middleware([authMiddleware])
+      .handler(async ({ context }) => {
+        // context.user available
+      })
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Related Concepts
+
+<CardGroup cols={2}>
+  <Card title="Server Rendering" icon="server" href="/start/concepts/server-rendering">
+    Learn how SSR works with server functions
+  </Card>
+  <Card title="Middleware" icon="filter" href="/start/guides/middleware">
+    Complete guide to middleware patterns
+  </Card>
+  <Card title="Streaming" icon="water" href="/start/concepts/streaming">
+    Stream data progressively to clients
+  </Card>
+  <Card title="Server Functions API" icon="code" href="/start/api/server-functions">
+    Complete API reference
+  </Card>
+</CardGroup>

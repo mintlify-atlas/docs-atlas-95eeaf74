@@ -1,0 +1,594 @@
+---
+title: Deployment
+description: Deploy your TanStack Start application to production environments
+---
+
+TanStack Start applications can be deployed to various hosting platforms. The deployment process varies based on whether you're building a traditional Single Page Application (SPA) or using server-side rendering (SSR).
+
+## Deployment Modes
+
+TanStack Start supports multiple deployment modes:
+
+### Server-Side Rendering (SSR)
+
+Full-stack applications with server rendering, streaming, and server functions:
+
+- **Node.js servers** - Express, Fastify, or standalone
+- **Serverless platforms** - Vercel, Netlify, AWS Lambda
+- **Edge runtime** - Cloudflare Workers, Deno Deploy
+- **Containerized** - Docker on any cloud platform
+
+### Static Site Generation (SSG)
+
+Pre-render pages at build time for static hosting:
+
+- Great for content-heavy sites
+- Deploy to CDNs for global distribution
+- No server runtime required
+
+### Single Page Application (SPA)
+
+Client-side only applications:
+
+- Traditional SPA deployment
+- Any static file hosting
+- Requires client-side routing configuration
+
+## Platform-Specific Deployment
+
+### Cloudflare Pages
+
+Deploy SSR applications to Cloudflare's edge network:
+
+<Steps>
+  <Step title="Install adapter">
+    ```bash
+    npm install @tanstack/start-adapter-cloudflare-pages
+    ```
+  </Step>
+
+  <Step title="Configure the adapter">
+    ```tsx app/server.ts
+    import { createStartHandler } from '@tanstack/react-start-server'
+    import { defaultStreamHandler } from '@tanstack/react-start-server'
+
+    export default createStartHandler(defaultStreamHandler)
+    ```
+  </Step>
+
+  <Step title="Deploy">
+    ```bash
+    npm run build
+    npx wrangler pages publish .output/public
+    ```
+  </Step>
+</Steps>
+
+**Configuration:**
+
+```json wrangler.toml
+name = "my-tanstack-start-app"
+compatibility_date = "2024-01-01"
+
+[build]
+command = "npm run build"
+
+[site]
+bucket = ".output/public"
+```
+
+### Vercel
+
+Deploy to Vercel's serverless platform:
+
+<Steps>
+  <Step title="Install Vercel CLI">
+    ```bash
+    npm install -g vercel
+    ```
+  </Step>
+
+  <Step title="Configure build">
+    ```json vercel.json
+    {
+      "buildCommand": "npm run build",
+      "outputDirectory": ".output/public",
+      "devCommand": "npm run dev",
+      "installCommand": "npm install"
+    }
+    ```
+  </Step>
+
+  <Step title="Deploy">
+    ```bash
+    vercel
+    ```
+  </Step>
+</Steps>
+
+Vercel automatically detects TanStack Start projects and configures them correctly.
+
+### Netlify
+
+Deploy to Netlify with edge functions:
+
+<Steps>
+  <Step title="Create configuration">
+    ```toml netlify.toml
+    [build]
+      command = "npm run build"
+      publish = ".output/public"
+
+    [[redirects]]
+      from = "/*"
+      to = "/.netlify/functions/server"
+      status = 200
+    ```
+  </Step>
+
+  <Step title="Deploy">
+    ```bash
+    netlify deploy --prod
+    ```
+  </Step>
+</Steps>
+
+### Node.js Server
+
+Deploy to any Node.js environment:
+
+<Steps>
+  <Step title="Build the application">
+    ```bash
+    npm run build
+    ```
+  </Step>
+
+  <Step title="Start the server">
+    ```bash
+    node .output/server/index.mjs
+    ```
+  </Step>
+</Steps>
+
+**Custom server:**
+
+```tsx server.mjs
+import { createStartHandler } from '@tanstack/react-start-server'
+import { defaultStreamHandler } from '@tanstack/react-start-server'
+import express from 'express'
+
+const app = express()
+const handler = createStartHandler(defaultStreamHandler)
+
+app.use(express.static('.output/public'))
+app.use(handler)
+
+app.listen(3000, () => {
+  console.log('Server running on http://localhost:3000')
+})
+```
+
+### Docker
+
+Containerize your application:
+
+```dockerfile Dockerfile
+# Build stage
+FROM node:20-alpine AS builder
+WORKDIR /app
+
+# Install dependencies
+COPY package*.json ./
+RUN npm ci
+
+# Copy source and build
+COPY . .
+RUN npm run build
+
+# Production stage
+FROM node:20-alpine
+WORKDIR /app
+
+# Copy built application
+COPY --from=builder /app/.output ./.output
+COPY --from=builder /app/package*.json ./
+
+# Install production dependencies only
+RUN npm ci --production
+
+EXPOSE 3000
+CMD ["node", ".output/server/index.mjs"]
+```
+
+**Build and run:**
+
+```bash
+docker build -t my-tanstack-app .
+docker run -p 3000:3000 my-tanstack-app
+```
+
+### Static Hosting (SPA Mode)
+
+Deploy as a static site:
+
+<Steps>
+  <Step title="Build for static hosting">
+    ```bash
+    npm run build
+    ```
+  </Step>
+
+  <Step title="Configure redirects">
+    For client-side routing, redirect all requests to `index.html`:
+
+    **Netlify** (`public/_redirects`):
+    ```
+    /*    /index.html   200
+    ```
+
+    **Vercel** (`vercel.json`):
+    ```json
+    {
+      "rewrites": [
+        { "source": "/(.*)", "destination": "/index.html" }
+      ]
+    }
+    ```
+
+    **Nginx**:
+    ```nginx
+    location / {
+      try_files $uri $uri/ /index.html;
+    }
+    ```
+  </Step>
+
+  <Step title="Deploy static files">
+    Upload the `.output/public` directory to your static hosting provider.
+  </Step>
+</Steps>
+
+## Environment Variables
+
+Manage environment-specific configuration:
+
+### Build-Time Variables
+
+Vite exposes variables prefixed with `VITE_`:
+
+```bash .env
+VITE_API_URL=https://api.example.com
+VITE_ANALYTICS_ID=abc123
+```
+
+```tsx
+const apiUrl = import.meta.env.VITE_API_URL
+```
+
+### Runtime Variables (Server-Side)
+
+Access variables in server functions and loaders:
+
+```tsx
+const dbConnection = createServerFn().handler(async () => {
+  const dbUrl = process.env.DATABASE_URL
+  return connectToDatabase(dbUrl)
+})
+```
+
+**Security:** Server-side environment variables are never exposed to the client.
+
+### Platform-Specific Configuration
+
+**Vercel:**
+```bash
+vercel env add DATABASE_URL
+```
+
+**Netlify:**
+```bash
+netlify env:set DATABASE_URL "postgresql://..."
+```
+
+**Cloudflare:**
+```bash
+wrangler secret put DATABASE_URL
+```
+
+## Asset Management
+
+TanStack Start automatically handles asset optimization:
+
+### Asset Manifest
+
+The build generates a manifest of all assets:
+
+```json .output/manifest.json
+{
+  "app.css": "/assets/app-abc123.css",
+  "app.js": "/assets/app-def456.js",
+  "logo.svg": "/assets/logo-ghi789.svg"
+}
+```
+
+The server uses this manifest to inject correct asset URLs.
+
+### CDN Integration
+
+Transform asset URLs to use a CDN:
+
+```tsx app/server.ts
+import { createStartHandler } from '@tanstack/react-start-server'
+import { defaultStreamHandler } from '@tanstack/react-start-server'
+
+export default createStartHandler({
+  handler: defaultStreamHandler,
+  transformAssetUrls: 'https://cdn.example.com',
+})
+```
+
+**Dynamic CDN selection:**
+
+```tsx
+export default createStartHandler({
+  handler: defaultStreamHandler,
+  transformAssetUrls: {
+    transform: ({ url }) => {
+      const region = getRequest().headers.get('x-region') || 'us'
+      return `https://cdn-${region}.example.com${url}`
+    },
+    cache: false, // Transform per-request
+  },
+})
+```
+
+### Static Assets
+
+Place static assets in the `public/` directory:
+
+```
+project/
+├── public/
+│   ├── favicon.ico
+│   ├── robots.txt
+│   └── images/
+│       └── logo.png
+```
+
+Reference them with absolute paths:
+
+```tsx
+<img src="/images/logo.png" alt="Logo" />
+```
+
+## Performance Optimization
+
+### Code Splitting
+
+TanStack Router automatically code-splits by route:
+
+```tsx
+// Each route becomes a separate chunk
+export const Route = createFileRoute('/dashboard')({
+  component: Dashboard,
+})
+```
+
+### Compression
+
+Enable compression in your server:
+
+```tsx
+import compression from 'compression'
+
+app.use(compression())
+```
+
+### Caching Strategies
+
+Set appropriate cache headers:
+
+```tsx
+export const Route = createFileRoute('/posts')({
+  loader: async () => {
+    setResponseHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400')
+    return { posts: await fetchPosts() }
+  },
+})
+```
+
+**Cache strategies:**
+- **Static assets**: `public, max-age=31536000, immutable`
+- **API responses**: `public, max-age=60, stale-while-revalidate=300`
+- **HTML pages**: `public, max-age=0, must-revalidate`
+
+### Preloading
+
+Preload critical resources:
+
+```tsx
+export const Route = createFileRoute('/')({ 
+  component: Home,
+  loader: async () => {
+    // Preload critical data
+    const [hero, posts] = await Promise.all([
+      fetchHero(),
+      fetchPosts({ limit: 5 })
+    ])
+    return { hero, posts }
+  }
+})
+```
+
+## Monitoring and Observability
+
+### Error Tracking
+
+Integrate error tracking:
+
+```tsx app/start.ts
+import * as Sentry from '@sentry/react'
+
+if (process.env.NODE_ENV === 'production') {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV,
+  })
+}
+```
+
+### Performance Monitoring
+
+Track Core Web Vitals:
+
+```tsx
+import { onCLS, onFID, onLCP } from 'web-vitals'
+
+function sendToAnalytics(metric) {
+  // Send to your analytics endpoint
+  fetch('/api/analytics', {
+    method: 'POST',
+    body: JSON.stringify(metric),
+  })
+}
+
+onCLS(sendToAnalytics)
+onFID(sendToAnalytics)
+onLCP(sendToAnalytics)
+```
+
+### Logging
+
+Implement structured logging:
+
+```tsx
+import { createServerFn } from '@tanstack/start-client-core'
+
+const serverFn = createServerFn()
+  .method('POST')
+  .handler(async ({ data }) => {
+    console.log({
+      level: 'info',
+      message: 'Processing request',
+      data,
+      timestamp: new Date().toISOString(),
+    })
+    // ...
+  })
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use environment variables for configuration">
+    Never hardcode secrets or environment-specific values:
+    
+    ```tsx
+    // ✗ Bad
+    const apiKey = 'sk_live_abc123'
+    
+    // ✓ Good
+    const apiKey = process.env.API_KEY
+    ```
+  </Accordion>
+
+  <Accordion title="Enable compression">
+    Reduce transfer size with gzip or brotli compression:
+    
+    ```tsx
+    import compression from 'compression'
+    app.use(compression())
+    ```
+  </Accordion>
+
+  <Accordion title="Set up proper caching">
+    Use appropriate cache headers for different content types:
+    
+    ```tsx
+    // Static assets - cache forever
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+    
+    // Dynamic content - cache with revalidation
+    res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
+    ```
+  </Accordion>
+
+  <Accordion title="Monitor application health">
+    Set up health check endpoints:
+    
+    ```tsx
+    app.get('/health', (req, res) => {
+      res.json({ status: 'ok', timestamp: Date.now() })
+    })
+    ```
+  </Accordion>
+
+  <Accordion title="Test production builds locally">
+    Always test production builds before deploying:
+    
+    ```bash
+    npm run build
+    npm run preview
+    ```
+  </Accordion>
+
+  <Accordion title="Use CDN for static assets">
+    Serve assets from a CDN for global distribution:
+    
+    ```tsx
+    export default createStartHandler({
+      handler: defaultStreamHandler,
+      transformAssetUrls: 'https://cdn.example.com',
+    })
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+### Build Failures
+
+**Issue:** Build fails with module errors
+
+**Solution:** Check that all dependencies are installed and versions are compatible:
+```bash
+rm -rf node_modules package-lock.json
+npm install
+```
+
+### Runtime Errors
+
+**Issue:** Application crashes on startup
+
+**Solution:** Check environment variables are set correctly:
+```bash
+node -e "console.log(process.env)"
+```
+
+### Performance Issues
+
+**Issue:** Slow page loads
+
+**Solution:**
+1. Enable streaming: `defaultStreamHandler`
+2. Add Suspense boundaries for slow components
+3. Implement proper caching strategies
+4. Use CDN for static assets
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Server Rendering" icon="server" href="/start/concepts/server-rendering">
+    Learn how SSR works
+  </Card>
+  <Card title="Streaming" icon="water" href="/start/concepts/streaming">
+    Optimize with streaming
+  </Card>
+  <Card title="Deployment Guide" icon="book" href="/start/guides/deployment">
+    Complete deployment guide
+  </Card>
+  <Card title="Static Generation" icon="file" href="/start/guides/static-generation">
+    Pre-render pages at build time
+  </Card>
+</CardGroup>

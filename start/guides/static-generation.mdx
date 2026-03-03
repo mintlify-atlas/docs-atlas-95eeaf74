@@ -1,0 +1,583 @@
+---
+title: Static Generation
+---
+
+# Static Generation
+
+TanStack Start supports static site generation (SSG), enabling you to prerender pages at build time. This results in optimal performance, SEO, and deployment flexibility.
+
+## What is Static Generation?
+
+Static generation prerenders routes at build time, producing HTML files that can be served from any static host. Benefits include:
+
+- **Optimal Performance**: No server-side rendering overhead
+- **Better SEO**: Fully rendered HTML for search engines
+- **Lower Costs**: Deploy to free static hosting
+- **Global Distribution**: Easy CDN deployment
+- **Offline Support**: Progressive web app capabilities
+
+## Configuring Static Generation
+
+<Steps>
+
+<Step>
+
+### Enable Prerendering
+
+Configure routes to prerender in `vite.config.ts`:
+
+```tsx
+import { defineConfig } from 'vite'
+import { TanStackStartPlugin } from '@tanstack/react-start/plugin'
+
+export default defineConfig({
+  plugins: [
+    TanStackStartPlugin({
+      prerender: {
+        routes: [
+          '/',
+          '/about',
+          '/contact'
+        ]
+      }
+    })
+  ]
+})
+```
+
+</Step>
+
+<Step>
+
+### Build Static Site
+
+Run the build command:
+
+```bash
+npm run build
+```
+
+This generates static HTML files in `dist/client` for each specified route.
+
+</Step>
+
+<Step>
+
+### Deploy Static Files
+
+Deploy the `dist/client` directory to any static host:
+
+```bash
+# Netlify
+netlify deploy --dir=dist/client --prod
+
+# Vercel
+vercel --prod
+
+# GitHub Pages
+gh-pages -d dist/client
+
+# AWS S3
+aws s3 sync dist/client s3://my-bucket --delete
+```
+
+</Step>
+
+</Steps>
+
+## Dynamic Route Prerendering
+
+Prerender routes with dynamic parameters:
+
+```tsx
+import { defineConfig } from 'vite'
+import { TanStackStartPlugin } from '@tanstack/react-start/plugin'
+
+export default defineConfig({
+  plugins: [
+    TanStackStartPlugin({
+      prerender: {
+        routes: async () => {
+          // Fetch data at build time
+          const posts = await fetch('https://api.example.com/posts')
+            .then(res => res.json())
+          
+          const products = await fetch('https://api.example.com/products')
+            .then(res => res.json())
+          
+          // Generate routes for all posts and products
+          return [
+            '/',
+            '/about',
+            ...posts.map(post => `/blog/${post.slug}`),
+            ...products.map(product => `/products/${product.id}`)
+          ]
+        }
+      }
+    })
+  ]
+})
+```
+
+## Incremental Static Regeneration
+
+Combine static generation with on-demand regeneration:
+
+### On-Demand Revalidation
+
+Trigger static page regeneration:
+
+```tsx
+import { createFileRoute } from '@tanstack/react-router'
+import { createServerFn } from '@tanstack/react-start'
+
+const revalidatePage = createServerFn({ method: 'POST' })
+  .inputValidator((path: string) => path)
+  .handler(async ({ data }) => {
+    // Trigger rebuild of specific page
+    await fetch(`https://build-hook.example.com/build`, {
+      method: 'POST',
+      body: JSON.stringify({ path: data }),
+      headers: { 'Content-Type': 'application/json' }
+    })
+    
+    return { revalidated: true }
+  })
+
+export const Route = createFileRoute('/api/revalidate')(
+  {
+    server: {
+      handlers: {
+        POST: async ({ request }) => {
+          const { path } = await request.json()
+          const result = await revalidatePage({ data: path })
+          return Response.json(result)
+        }
+      }
+    }
+  }
+)
+```
+
+### Time-Based Revalidation
+
+Schedule periodic rebuilds:
+
+```tsx
+// src/build-config.ts
+export const revalidateConfig = {
+  // Revalidate every 60 seconds
+  revalidate: 60,
+  
+  // Paths to revalidate
+  paths: [
+    '/',
+    '/blog',
+    '/products'
+  ]
+}
+```
+
+## Hybrid Static and Dynamic
+
+Combine static pages with dynamic routes:
+
+```tsx
+import { defineConfig } from 'vite'
+import { TanStackStartPlugin } from '@tanstack/react-start/plugin'
+
+export default defineConfig({
+  plugins: [
+    TanStackStartPlugin({
+      prerender: {
+        routes: [
+          // Static pages
+          '/',
+          '/about',
+          '/contact',
+          
+          // Top blog posts (prerendered)
+          '/blog/getting-started',
+          '/blog/advanced-features'
+        ]
+      }
+    })
+  ]
+})
+```
+
+Non-prerendered routes (like `/blog/[slug]`) fall back to SSR or client-side rendering.
+
+## Client-Side Data Fetching
+
+Load additional data on the client:
+
+```tsx
+import { createFileRoute } from '@tanstack/react-router'
+import { createServerFn } from '@tanstack/react-start'
+import { useEffect, useState } from 'react'
+
+const getStaticData = createServerFn().handler(async () => {
+  // This runs at build time for prerendered routes
+  return {
+    title: 'My Page',
+    content: 'Static content'
+  }
+})
+
+const getDynamicData = createServerFn().handler(async () => {
+  // This runs on the client after hydration
+  return {
+    stats: await fetchLiveStats(),
+    timestamp: Date.now()
+  }
+})
+
+export const Route = createFileRoute('/hybrid')(
+  {
+    loader: async () => {
+      // Loaded at build time for static generation
+      return await getStaticData()
+    },
+    component: HybridComponent
+  }
+)
+
+function HybridComponent() {
+  const staticData = Route.useLoaderData()
+  const [dynamicData, setDynamicData] = useState(null)
+  
+  useEffect(() => {
+    // Load dynamic data on the client
+    getDynamicData().then(setDynamicData)
+  }, [])
+  
+  return (
+    <div>
+      {/* Static content */}
+      <h1>{staticData.title}</h1>
+      <p>{staticData.content}</p>
+      
+      {/* Dynamic content */}
+      {dynamicData && (
+        <div>
+          <h2>Live Stats</h2>
+          <p>{dynamicData.stats}</p>
+          <p>Updated: {new Date(dynamicData.timestamp).toLocaleString()}</p>
+        </div>
+      )}
+    </div>
+  )
+}
+```
+
+## Sitemap Generation
+
+Generate sitemaps during build:
+
+```tsx
+// scripts/generate-sitemap.ts
+import { writeFileSync } from 'fs'
+import { join } from 'path'
+
+const SITE_URL = 'https://example.com'
+
+interface Route {
+  path: string
+  lastmod?: string
+  changefreq?: 'always' | 'hourly' | 'daily' | 'weekly' | 'monthly' | 'yearly' | 'never'
+  priority?: number
+}
+
+async function generateSitemap() {
+  // Fetch all routes
+  const posts = await fetch('https://api.example.com/posts').then(r => r.json())
+  const products = await fetch('https://api.example.com/products').then(r => r.json())
+  
+  const routes: Route[] = [
+    { path: '/', changefreq: 'daily', priority: 1.0 },
+    { path: '/about', changefreq: 'monthly', priority: 0.8 },
+    { path: '/blog', changefreq: 'daily', priority: 0.9 },
+    ...posts.map(post => ({
+      path: `/blog/${post.slug}`,
+      lastmod: post.updatedAt,
+      changefreq: 'weekly' as const,
+      priority: 0.7
+    })),
+    ...products.map(product => ({
+      path: `/products/${product.id}`,
+      lastmod: product.updatedAt,
+      changefreq: 'weekly' as const,
+      priority: 0.6
+    }))
+  ]
+  
+  const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${routes.map(route => `  <url>
+    <loc>${SITE_URL}${route.path}</loc>
+    ${route.lastmod ? `<lastmod>${route.lastmod}</lastmod>` : ''}
+    ${route.changefreq ? `<changefreq>${route.changefreq}</changefreq>` : ''}
+    ${route.priority ? `<priority>${route.priority}</priority>` : ''}
+  </url>`).join('\n')}
+</urlset>`
+  
+  writeFileSync(
+    join(process.cwd(), 'dist', 'client', 'sitemap.xml'),
+    sitemap
+  )
+  
+  console.log('✓ Generated sitemap.xml')
+}
+
+generateSitemap()
+```
+
+Run after build:
+
+```json
+{
+  "scripts": {
+    "build": "vite build && tsx scripts/generate-sitemap.ts"
+  }
+}
+```
+
+## RSS Feed Generation
+
+Generate RSS feeds for static content:
+
+```tsx
+// scripts/generate-rss.ts
+import { writeFileSync } from 'fs'
+import { join } from 'path'
+
+const SITE_URL = 'https://example.com'
+const SITE_NAME = 'My Blog'
+const SITE_DESCRIPTION = 'Latest posts from My Blog'
+
+interface Post {
+  title: string
+  slug: string
+  description: string
+  publishedAt: string
+  author: string
+}
+
+async function generateRSS() {
+  const posts: Post[] = await fetch('https://api.example.com/posts')
+    .then(r => r.json())
+  
+  const rss = `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>${SITE_NAME}</title>
+    <link>${SITE_URL}</link>
+    <description>${SITE_DESCRIPTION}</description>
+    <language>en-US</language>
+    <atom:link href="${SITE_URL}/rss.xml" rel="self" type="application/rss+xml" />
+${posts.map(post => `    <item>
+      <title>${post.title}</title>
+      <link>${SITE_URL}/blog/${post.slug}</link>
+      <description>${post.description}</description>
+      <pubDate>${new Date(post.publishedAt).toUTCString()}</pubDate>
+      <author>${post.author}</author>
+      <guid>${SITE_URL}/blog/${post.slug}</guid>
+    </item>`).join('\n')}
+  </channel>
+</rss>`
+  
+  writeFileSync(
+    join(process.cwd(), 'dist', 'client', 'rss.xml'),
+    rss
+  )
+  
+  console.log('✓ Generated rss.xml')
+}
+
+generateRSS()
+```
+
+## Image Optimization
+
+Optimize images during build:
+
+```tsx
+// vite.config.ts
+import { defineConfig } from 'vite'
+import { TanStackStartPlugin } from '@tanstack/react-start/plugin'
+import { imagetools } from 'vite-imagetools'
+
+export default defineConfig({
+  plugins: [
+    TanStackStartPlugin({
+      prerender: {
+        routes: ['/']
+      }
+    }),
+    imagetools({
+      defaultDirectives: {
+        quality: 80,
+        format: 'webp'
+      }
+    })
+  ]
+})
+```
+
+Use optimized images:
+
+```tsx
+import heroImage from './hero.jpg?w=800&format=webp'
+
+function Hero() {
+  return (
+    <img
+      src={heroImage}
+      alt="Hero image"
+      loading="lazy"
+    />
+  )
+}
+```
+
+## Metadata Generation
+
+Generate SEO metadata for static pages:
+
+```tsx
+import { createFileRoute } from '@tanstack/react-router'
+import { createServerFn } from '@tanstack/react-start'
+
+const getPageData = createServerFn().handler(async () => {
+  return {
+    title: 'My Page Title',
+    description: 'My page description for SEO',
+    ogImage: 'https://example.com/og-image.jpg'
+  }
+})
+
+export const Route = createFileRoute('/page')(
+  {
+    loader: async () => {
+      return await getPageData()
+    },
+    component: PageComponent,
+    head: ({ loaderData }) => ({
+      title: loaderData.title,
+      meta: [
+        {
+          name: 'description',
+          content: loaderData.description
+        },
+        {
+          property: 'og:title',
+          content: loaderData.title
+        },
+        {
+          property: 'og:description',
+          content: loaderData.description
+        },
+        {
+          property: 'og:image',
+          content: loaderData.ogImage
+        }
+      ]
+    })
+  }
+)
+
+function PageComponent() {
+  const data = Route.useLoaderData()
+  return <div>{data.title}</div>
+}
+```
+
+## Progressive Web App
+
+Generate PWA manifest and service worker:
+
+```tsx
+// public/manifest.json
+{
+  "name": "My App",
+  "short_name": "App",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#000000",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
+```
+
+Register service worker:
+
+```tsx
+// src/entry-client.tsx
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js')
+}
+```
+
+## Build-Time Environment Variables
+
+Access environment variables during build:
+
+```tsx
+import { defineConfig } from 'vite'
+import { TanStackStartPlugin } from '@tanstack/react-start/plugin'
+
+export default defineConfig({
+  plugins: [
+    TanStackStartPlugin({
+      prerender: {
+        routes: async () => {
+          // Access build-time env vars
+          const API_URL = process.env.API_URL || 'https://api.example.com'
+          
+          const posts = await fetch(`${API_URL}/posts`).then(r => r.json())
+          
+          return [
+            '/',
+            ...posts.map(post => `/blog/${post.slug}`)
+          ]
+        }
+      }
+    })
+  ],
+  define: {
+    // Make env vars available to client
+    'process.env.PUBLIC_API_URL': JSON.stringify(process.env.PUBLIC_API_URL)
+  }
+})
+```
+
+## Best Practices
+
+- **Prerender high-traffic pages**: Focus on pages that benefit most from SSG
+- **Use incremental builds**: Only rebuild changed pages
+- **Optimize images**: Compress and convert to modern formats
+- **Generate sitemaps**: Help search engines discover your content
+- **Implement caching**: Set aggressive cache headers for static assets
+- **Monitor build times**: Keep builds fast for better developer experience
+- **Test static output**: Verify generated HTML is correct
+- **Use CDNs**: Distribute static files globally
+- **Implement fallbacks**: Handle non-prerendered routes gracefully
+- **Version assets**: Use content hashing for cache busting
+
+## Learn More
+
+- [Server Functions](/start/guides/server-functions)
+- [Deployment](/start/guides/deployment)
+- [Middleware](/start/guides/middleware)

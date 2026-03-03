@@ -1,0 +1,434 @@
+---
+title: Deploy to Vercel
+description: Deploy your TanStack Start application to Vercel
+---
+
+Vercel is a cloud platform for static sites and serverless functions. TanStack Start applications can be deployed to Vercel using the Nitro deployment adapter.
+
+## Prerequisites
+
+- A Vercel account ([sign up here](https://vercel.com/signup))
+- Node.js and pnpm (or npm/yarn) installed
+- A TanStack Start application
+
+## Configuration
+
+### Install Nitro
+
+TanStack Start uses Nitro as the deployment adapter for Vercel. Install the nightly version:
+
+```bash
+pnpm add nitro@npm:nitro-nightly@latest -D
+```
+
+Or add to your `package.json`:
+
+```json
+{
+  "devDependencies": {
+    "nitro": "npm:nitro-nightly@latest"
+  }
+}
+```
+
+### Update Vite Config
+
+Add the Nitro plugin to your `vite.config.ts`:
+
+```ts
+import { defineConfig } from 'vite'
+import { tanstackStart } from '@tanstack/react-start/plugin/vite'
+import { nitro } from 'nitro/vite'
+import viteReact from '@vitejs/plugin-react'
+
+export default defineConfig({
+  plugins: [
+    tanstackStart(),
+    nitro(),
+    viteReact(),
+  ],
+})
+```
+
+<Warning>
+  Nitro v3 with Vite Environments API is under active development. Please report any issues you encounter to the Nitro team.
+</Warning>
+
+### Build Scripts
+
+Ensure your `package.json` has the correct build scripts:
+
+```json
+{
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "start": "node .output/server/index.mjs",
+    "preview": "vite preview"
+  }
+}
+```
+
+## Deployment Methods
+
+### Deploy with Vercel CLI
+
+Install the Vercel CLI:
+
+```bash
+pnpm add -g vercel
+```
+
+Deploy your application:
+
+```bash
+# First deployment or preview
+vercel
+
+# Production deployment
+vercel --prod
+```
+
+The CLI will guide you through:
+1. Linking to an existing project or creating a new one
+2. Configuring project settings
+3. Deploying your application
+
+### Deploy with Git Integration
+
+1. Push your code to GitHub, GitLab, or Bitbucket
+2. Import your repository in the [Vercel Dashboard](https://vercel.com/new)
+3. Vercel automatically detects your framework and configuration
+4. Click **Deploy**
+
+**Benefits:**
+- Automatic deployments on git push
+- Preview deployments for pull requests
+- Easy rollbacks to previous deployments
+
+### One-Click Deploy
+
+Add a deploy button to your repository README:
+
+```markdown
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/yourusername/yourrepo)
+```
+
+## Environment Variables
+
+### In Vercel Dashboard
+
+1. Go to **Project Settings > Environment Variables**
+2. Add your variables
+3. Select environments (Production, Preview, Development)
+4. Save changes
+
+### Accessing Variables
+
+Environment variables are available through `process.env`:
+
+```ts
+export const getServerData = async () => {
+  const apiKey = process.env.API_KEY
+  const apiUrl = process.env.API_URL
+  
+  return { apiKey, apiUrl }
+}
+```
+
+### Local Development
+
+Create a `.env.local` file for local development:
+
+```bash
+API_KEY=your-api-key
+API_URL=https://api.example.com
+```
+
+<Note>
+  Add `.env*.local` to your `.gitignore` to prevent committing secrets.
+</Note>
+
+## Build Configuration
+
+### vercel.json
+
+Create a `vercel.json` file for advanced configuration:
+
+```json
+{
+  "buildCommand": "pnpm build",
+  "devCommand": "pnpm dev",
+  "installCommand": "pnpm install",
+  "framework": null,
+  "outputDirectory": ".output"
+}
+```
+
+### Build Settings in Dashboard
+
+Alternatively, configure in the Vercel Dashboard:
+
+1. Go to **Project Settings > General**
+2. Set **Framework Preset** to "Other"
+3. Set **Build Command** to `pnpm build`
+4. Set **Output Directory** to `.output`
+5. Set **Install Command** to `pnpm install`
+
+## Advanced Configuration
+
+### Custom Headers
+
+Add headers in `vercel.json`:
+
+```json
+{
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Redirects and Rewrites
+
+```json
+{
+  "redirects": [
+    {
+      "source": "/old-path",
+      "destination": "/new-path",
+      "permanent": true
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://api.example.com/:path*"
+    }
+  ]
+}
+```
+
+### Regions Configuration
+
+Configure serverless function regions:
+
+```json
+{
+  "regions": ["iad1", "sfo1"]
+}
+```
+
+Available regions:
+- `iad1` - Washington, D.C., USA
+- `sfo1` - San Francisco, USA
+- `gru1` - São Paulo, Brazil
+- `lhr1` - London, UK
+- `hnd1` - Tokyo, Japan
+- And more...
+
+### Function Configuration
+
+Configure serverless functions in `vercel.json`:
+
+```json
+{
+  "functions": {
+    "api/**": {
+      "memory": 3008,
+      "maxDuration": 30
+    }
+  }
+}
+```
+
+## Preview Deployments
+
+Vercel automatically creates preview deployments:
+
+1. Push to any branch or open a pull request
+2. Vercel builds and deploys a preview
+3. Preview URL is posted as a comment on PRs
+4. Each commit gets a unique preview URL
+
+### Configure Preview Deployments
+
+Control preview behavior in `vercel.json`:
+
+```json
+{
+  "github": {
+    "enabled": true,
+    "autoAlias": true,
+    "silent": false,
+    "autoJobCancelation": true
+  }
+}
+```
+
+## Custom Domains
+
+### Add a Domain
+
+1. Go to **Project Settings > Domains**
+2. Add your custom domain
+3. Configure DNS records as instructed
+4. Vercel automatically provisions SSL certificates
+
+### Domain Configuration
+
+Redirect www to apex domain:
+
+```json
+{
+  "redirects": [
+    {
+      "source": "https://www.example.com/:path*",
+      "destination": "https://example.com/:path*",
+      "permanent": true
+    }
+  ]
+}
+```
+
+## Edge Configuration
+
+### Edge Functions
+
+Deploy functions to Vercel's Edge Network for lowest latency:
+
+```ts
+// app/api/edge-function.ts
+export const config = {
+  runtime: 'edge',
+}
+
+export default async function handler(request: Request) {
+  return new Response('Hello from the Edge!')
+}
+```
+
+### Edge Middleware
+
+Create middleware for authentication, redirects, etc.:
+
+```ts
+// middleware.ts
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
+
+export function middleware(request: NextRequest) {
+  // Add custom logic here
+  return NextResponse.next()
+}
+```
+
+## Performance Optimization
+
+### Caching
+
+Configure caching headers:
+
+```json
+{
+  "headers": [
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Image Optimization
+
+Vercel automatically optimizes images. Use the Image component:
+
+```tsx
+import Image from 'next/image'
+
+function Avatar() {
+  return <Image src="/avatar.jpg" width={200} height={200} alt="Avatar" />
+}
+```
+
+## Monitoring and Analytics
+
+### Vercel Analytics
+
+Enable analytics in your dashboard:
+
+1. Go to **Analytics** tab
+2. Enable **Web Analytics**
+3. View real-time and historical data
+
+### Speed Insights
+
+Monitor Core Web Vitals:
+
+1. Enable **Speed Insights** in dashboard
+2. Track TTFB, FCP, LCP, CLS, and more
+3. Get actionable recommendations
+
+## Resources
+
+- [Vercel Documentation](https://vercel.com/docs)
+- [Vercel CLI Documentation](https://vercel.com/docs/cli)
+- [Nitro Documentation](https://v3.nitro.build/)
+- [Nitro Vercel Preset](https://v3.nitro.build/deploy/providers/vercel)
+
+## Troubleshooting
+
+### Build Errors
+
+If your build fails:
+- Check build logs in Vercel dashboard
+- Verify Nitro is installed correctly
+- Ensure `vite build` works locally
+- Check Node.js version compatibility (set in **Project Settings > General**)
+
+### Runtime Errors
+
+For serverless function errors:
+- Check **Functions** logs in Vercel dashboard
+- Verify environment variables are set
+- Test locally with `vercel dev`
+- Check function timeout limits (default: 10s, max: 300s on Pro)
+
+### Deployment Issues
+
+If deployments are failing:
+- Verify Git integration is configured correctly
+- Check branch settings in **Project Settings > Git**
+- Ensure build command is correct
+- Try deploying with CLI: `vercel --prod`
+
+### Performance Issues
+
+For slow response times:
+- Use Edge Functions for dynamic content
+- Configure appropriate caching headers
+- Optimize serverless function cold starts
+- Consider upgrading to Pro for better performance
+- Check function region configuration

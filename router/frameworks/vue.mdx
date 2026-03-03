@@ -1,0 +1,730 @@
+---
+title: Vue Router
+description: Framework-specific APIs, components, and composables for Vue 3
+---
+
+# Vue Router
+
+TanStack Router provides first-class support for Vue 3 with reactive composables, components, and patterns designed specifically for Vue applications.
+
+## Installation
+
+```bash
+npm install @tanstack/vue-router
+```
+
+## Core Components
+
+### RouterProvider
+
+The top-level component that renders active route matches and provides the router to the Vue tree.
+
+```tsx
+import { createApp } from 'vue'
+import { RouterProvider, createRouter } from '@tanstack/vue-router'
+
+const router = createRouter({ routeTree })
+
+const app = createApp({
+  setup() {
+    return () => <RouterProvider router={router} />
+  },
+})
+
+app.mount('#app')
+```
+
+### Link
+
+Reactive navigation component with preloading and active state support.
+
+```tsx
+import { Link } from '@tanstack/vue-router'
+
+function Navigation() {
+  return (
+    <Link
+      to="/posts/$postId"
+      params={{ postId: '123' }}
+      activeProps={{
+        class: 'font-bold',
+      }}
+      activeOptions={{ exact: true }}
+    >
+      View Post
+    </Link>
+  )
+}
+```
+
+**Key Props:**
+- `to` - Type-safe destination path
+- `params` - Path parameters
+- `search` - Search parameters
+- `activeProps` - Props applied when link is active
+- `inactiveProps` - Props applied when link is inactive
+- `preload` - Controls preloading behavior (`false`, `'intent'`, `'viewport'`)
+- `disabled` - Disables navigation
+
+### Outlet
+
+Renders child route matches at the current level.
+
+```tsx
+import { Outlet } from '@tanstack/vue-router'
+
+function LayoutComponent() {
+  return (
+    <div>
+      <header>Header</header>
+      <main>
+        <Outlet />
+      </main>
+    </div>
+  )
+}
+```
+
+### ErrorComponent
+
+Default error boundary component that displays error details.
+
+```tsx
+import { ErrorComponent } from '@tanstack/vue-router'
+import type { ErrorComponentProps } from '@tanstack/vue-router'
+
+function CustomErrorComponent({ error }: ErrorComponentProps) {
+  return (
+    <div>
+      <h1>Error</h1>
+      <pre>{error.message}</pre>
+    </div>
+  )
+}
+```
+
+### Navigate
+
+Component-based navigation trigger.
+
+```tsx
+import { Navigate } from '@tanstack/vue-router'
+
+function RedirectComponent() {
+  return <Navigate to="/home" />
+}
+```
+
+## Vue Composables
+
+### useRouter
+
+Access the router instance from any component.
+
+```tsx
+import { useRouter } from '@tanstack/vue-router'
+
+function MyComponent() {
+  const router = useRouter()
+  
+  const handleNavigate = () => {
+    router.navigate({ to: '/about' })
+  }
+  
+  return <button onClick={handleNavigate}>Go to About</button>
+}
+```
+
+### useNavigate
+
+Type-safe programmatic navigation.
+
+```tsx
+import { useNavigate } from '@tanstack/vue-router'
+
+function MyComponent() {
+  const navigate = useNavigate({ from: '/posts' })
+  
+  const handleClick = () => {
+    navigate({ to: '/posts/$postId', params: { postId: '123' } })
+  }
+  
+  return <button onClick={handleClick}>View Post</button>
+}
+```
+
+### useParams
+
+Access route path parameters reactively.
+
+```tsx
+import { useParams } from '@tanstack/vue-router'
+import { watch } from 'vue'
+
+function PostComponent() {
+  const params = useParams({ from: '/posts/$postId' })
+  
+  // params is a reactive ref
+  watch(() => params.value.postId, (postId) => {
+    console.log('Post ID changed:', postId)
+  })
+  
+  return <div>Post ID: {params.value.postId}</div>
+}
+```
+
+**Note**: In Vue, `useParams` returns a reactive ref, so access with `params.value`.
+
+### useSearch
+
+Access route search parameters reactively.
+
+```tsx
+import { useSearch } from '@tanstack/vue-router'
+import { watch } from 'vue'
+
+function PostsComponent() {
+  const search = useSearch({ from: '/posts' })
+  
+  // search is a reactive ref
+  watch(() => search.value.filter, (filter) => {
+    console.log('Filter changed:', filter)
+  })
+  
+  return <div>Filter: {search.value.filter}</div>
+}
+```
+
+### useLoaderData
+
+Access data loaded by the route's loader function as a reactive ref.
+
+```tsx
+import { useLoaderData } from '@tanstack/vue-router'
+
+function PostComponent() {
+  const post = useLoaderData({ from: '/posts/$postId' })
+  
+  // post is a Vue ref - access with post.value
+  return (
+    <div>
+      <h1>{post.value.title}</h1>
+      <p>{post.value.body}</p>
+    </div>
+  )
+}
+```
+
+**Key Difference**: In Vue, `useLoaderData` returns a ref, so access data with `post.value`.
+
+### useMatch
+
+Access the current route match with reactive properties.
+
+```tsx
+import { useMatch } from '@tanstack/vue-router'
+
+function MyComponent() {
+  const match = useMatch({ from: '/posts/$postId' })
+  
+  // match is a reactive ref
+  return (
+    <div>
+      <p>Status: {match.value.status}</p>
+      <p>Post ID: {match.value.params.postId}</p>
+    </div>
+  )
+}
+```
+
+### useRouteContext
+
+Access route context provided by parent routes reactively.
+
+```tsx
+import { useRouteContext } from '@tanstack/vue-router'
+
+function MyComponent() {
+  const context = useRouteContext({ from: '/posts/$postId' })
+  
+  return <div>User: {context.value.user.name}</div>
+}
+```
+
+### useLocation
+
+Access the current location object reactively.
+
+```tsx
+import { useLocation } from '@tanstack/vue-router'
+import { watch } from 'vue'
+
+function MyComponent() {
+  const location = useLocation()
+  
+  watch(location, (newLocation) => {
+    console.log('Location changed:', newLocation.pathname)
+  })
+  
+  return (
+    <div>
+      <p>Pathname: {location.value.pathname}</p>
+      <p>Hash: {location.value.hash}</p>
+    </div>
+  )
+}
+```
+
+### useRouterState
+
+Access router state reactively with optional selector.
+
+```tsx
+import { useRouterState } from '@tanstack/vue-router'
+
+function MyComponent() {
+  const isLoading = useRouterState({
+    select: (state) => state.isLoading,
+  })
+  
+  return isLoading.value ? <div>Loading...</div> : <div>Content</div>
+}
+```
+
+**Note**: Returns a ref, so access with `isLoading.value`.
+
+### useMatchRoute
+
+Check if a specific route matches the current location.
+
+```tsx
+import { useMatchRoute } from '@tanstack/vue-router'
+import { computed } from 'vue'
+
+function MyComponent() {
+  const matchRoute = useMatchRoute()
+  const isPostsRoute = computed(() => matchRoute({ to: '/posts' }))
+  
+  return (
+    <div>{isPostsRoute.value ? 'On Posts Page' : 'Not on Posts Page'}</div>
+  )
+}
+```
+
+### useLinkProps
+
+Build anchor-like props for custom link components.
+
+```tsx
+import { useLinkProps } from '@tanstack/vue-router'
+
+function CustomLink(props) {
+  const linkProps = useLinkProps(props)
+  
+  return <a {...linkProps} class="custom-link" />
+}
+```
+
+### useBlocker
+
+Block navigation based on a condition (useful for unsaved changes).
+
+```tsx
+import { useBlocker } from '@tanstack/vue-router'
+import { ref } from 'vue'
+
+function FormComponent() {
+  const hasUnsavedChanges = ref(false)
+  
+  useBlocker({
+    condition: hasUnsavedChanges,
+    blockerFn: () => window.confirm('You have unsaved changes. Leave anyway?'),
+  })
+  
+  return <form>...</form>
+}
+```
+
+## Route API
+
+### RouteApi
+
+Route-specific API with pre-bound reactive composables for a specific route ID.
+
+```tsx
+import { getRouteApi } from '@tanstack/vue-router'
+
+const postRoute = getRouteApi('/posts/$postId')
+
+function PostComponent() {
+  const params = postRoute.useParams()
+  const post = postRoute.useLoaderData()
+  const navigate = postRoute.useNavigate()
+  
+  return (
+    <div>
+      <h1>{post.value.title}</h1>
+      <postRoute.Link to="/posts">Back to Posts</postRoute.Link>
+    </div>
+  )
+}
+```
+
+## Creating Routes
+
+### Code-based Routes
+
+```tsx
+import { createRoute, createRootRoute, Outlet } from '@tanstack/vue-router'
+
+const rootRoute = createRootRoute({
+  component: () => (
+    <>
+      <nav>...</nav>
+      <Outlet />
+    </>
+  ),
+})
+
+const indexRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/',
+  component: () => <div>Welcome Home!</div>,
+})
+
+const postRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/posts/$postId',
+  loader: ({ params }) => fetchPost(params.postId),
+  component: PostComponent,
+})
+
+function PostComponent() {
+  const post = postRoute.useLoaderData()
+  // Access as ref: post.value
+  return <div>{post.value.title}</div>
+}
+
+const routeTree = rootRoute.addChildren([indexRoute, postRoute])
+```
+
+### File-based Routes (JSX)
+
+```tsx
+// src/routes/__root.tsx
+import { createRootRoute, Outlet } from '@tanstack/vue-router'
+
+export const Route = createRootRoute({
+  component: () => (
+    <>
+      <nav>...</nav>
+      <Outlet />
+    </>
+  ),
+})
+
+// src/routes/index.tsx
+import { createFileRoute } from '@tanstack/vue-router'
+
+export const Route = createFileRoute('/')({ 
+  component: () => <div>Welcome Home!</div>,
+})
+
+// src/routes/posts/$postId.tsx
+import { createFileRoute } from '@tanstack/vue-router'
+
+export const Route = createFileRoute('/posts/$postId')({
+  loader: ({ params }) => fetchPost(params.postId),
+  component: PostComponent,
+})
+
+function PostComponent() {
+  const post = Route.useLoaderData()
+  return <div>{post.value.title}</div>
+}
+```
+
+### File-based Routes (SFC)
+
+Vue Router also supports `.vue` Single File Components:
+
+```vue
+<!-- src/routes/posts/$postId.vue -->
+<script setup lang="ts">
+import { useLoaderData } from '@tanstack/vue-router'
+
+const post = useLoaderData({ from: '/posts/$postId' })
+</script>
+
+<template>
+  <div>
+    <h1>{{ post.title }}</h1>
+    <p>{{ post.body }}</p>
+  </div>
+</template>
+```
+
+## SSR Support
+
+Vue Router includes specialized SSR utilities:
+
+```tsx
+// Server-side
+import { renderToString } from 'vue/server-renderer'
+import { createMemoryHistory } from '@tanstack/vue-router'
+import { createApp } from 'vue'
+
+const history = createMemoryHistory({
+  initialEntries: [request.url],
+})
+
+const router = createRouter({ 
+  routeTree,
+  history,
+})
+
+await router.load()
+
+const app = createApp({
+  setup() {
+    return () => <RouterProvider router={router} />
+  },
+})
+
+const html = await renderToString(app)
+
+// Client-side
+import { createBrowserHistory } from '@tanstack/vue-router'
+
+const history = createBrowserHistory()
+const router = createRouter({ routeTree, history })
+
+const app = createApp({
+  setup() {
+    return () => <RouterProvider router={router} />
+  },
+})
+
+app.mount('#app')
+```
+
+## Vue-Specific Features
+
+### Reactive Refs
+
+All router state is returned as Vue refs:
+
+```tsx
+import { watch } from 'vue'
+import { useParams, useSearch } from '@tanstack/vue-router'
+
+function MyComponent() {
+  const params = useParams({ from: '/posts/$postId' })
+  const search = useSearch({ from: '/posts' })
+  
+  // Watch changes
+  watch([() => params.value.postId, () => search.value.filter], 
+    ([postId, filter]) => {
+      console.log('Params or search changed:', postId, filter)
+    }
+  )
+  
+  return <div>Post: {params.value.postId}</div>
+}
+```
+
+### Single File Component Support
+
+Vue Router fully supports `.vue` SFC syntax:
+
+```vue
+<script setup lang="ts">
+import { useLoaderData } from '@tanstack/vue-router'
+
+const posts = useLoaderData({ from: '/posts' })
+</script>
+
+<template>
+  <ul>
+    <li v-for="post in posts" :key="post.id">
+      {{ post.title }}
+    </li>
+  </ul>
+</template>
+
+<style scoped>
+li {
+  margin: 1rem 0;
+}
+</style>
+```
+
+### Template Syntax
+
+Use Vue's template directives with router components:
+
+```vue
+<template>
+  <div>
+    <Link 
+      to="/posts" 
+      :activeProps="{ class: 'active' }"
+    >
+      Posts
+    </Link>
+    
+    <div v-if="isLoading">Loading...</div>
+    <div v-else>
+      <Outlet />
+    </div>
+  </div>
+</template>
+```
+
+### Computed Properties
+
+Combine router state with computed properties:
+
+```tsx
+import { computed } from 'vue'
+import { useParams, useLoaderData } from '@tanstack/vue-router'
+
+function PostComponent() {
+  const params = useParams({ from: '/posts/$postId' })
+  const post = useLoaderData({ from: '/posts/$postId' })
+  
+  const title = computed(() => 
+    `Post ${params.value.postId}: ${post.value.title}`
+  )
+  
+  return <h1>{title.value}</h1>
+}
+```
+
+## Complete Example
+
+```tsx
+import { createApp } from 'vue'
+import {
+  RouterProvider,
+  createRouter,
+  createRootRoute,
+  createRoute,
+  Link,
+  Outlet,
+} from '@tanstack/vue-router'
+
+const rootRoute = createRootRoute({
+  component: () => (
+    <div>
+      <nav>
+        <Link to="/" activeProps={{ class: 'font-bold' }}>
+          Home
+        </Link>
+        <Link to="/posts" activeProps={{ class: 'font-bold' }}>
+          Posts
+        </Link>
+      </nav>
+      <Outlet />
+    </div>
+  ),
+})
+
+const indexRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/',
+  component: () => <h1>Welcome Home!</h1>,
+})
+
+const postsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/posts',
+  loader: () => fetch('/api/posts').then(r => r.json()),
+  component: PostsComponent,
+})
+
+function PostsComponent() {
+  const posts = postsRoute.useLoaderData()
+  
+  return (
+    <ul>
+      {posts.value.map(post => (
+        <li key={post.id}>
+          <Link to="/posts/$postId" params={{ postId: post.id }}>
+            {post.title}
+          </Link>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+const routeTree = rootRoute.addChildren([indexRoute, postsRoute])
+const router = createRouter({ routeTree })
+
+declare module '@tanstack/vue-router' {
+  interface Register {
+    router: typeof router
+  }
+}
+
+const app = createApp({
+  setup() {
+    return () => <RouterProvider router={router} />
+  },
+})
+
+app.mount('#app')
+```
+
+## Best Practices
+
+1. **Type Safety**: Always register your router type:
+   ```tsx
+   declare module '@tanstack/vue-router' {
+     interface Register {
+       router: typeof router
+     }
+   }
+   ```
+
+2. **Use Refs**: Remember that composables return refs:
+   ```tsx
+   const data = useLoaderData({ from: '/posts' })
+   return <div>{data.value}</div> // Access with .value
+   ```
+
+3. **Watch Changes**: Use Vue's `watch` for side effects:
+   ```tsx
+   watch(() => params.value.postId, (id) => {
+     console.log('Post ID changed:', id)
+   })
+   ```
+
+4. **SFC Support**: Leverage `.vue` files for better DX:
+   ```vue
+   <script setup lang="ts">
+   const post = useLoaderData({ from: '/posts/$postId' })
+   </script>
+   
+   <template>
+     <h1>{{ post.title }}</h1>
+   </template>
+   ```
+
+5. **Template Directives**: Use `v-if`, `v-for`, etc. with router state:
+   ```vue
+   <template>
+     <div v-if="isLoading">Loading...</div>
+     <div v-else>Content</div>
+   </template>
+   ```
+
+## Key Differences from React Router
+
+- **Refs**: All composables return Vue refs, not plain values - access with `.value`
+- **SFC Support**: Full support for `.vue` Single File Components
+- **Template Syntax**: Can use Vue template directives with router components
+- **Watch API**: Use Vue's `watch` instead of `useEffect` for side effects
+- **No Hooks Rules**: Vue composition API is more flexible than React hooks
+- **JSX Support**: Supports both JSX and template syntax

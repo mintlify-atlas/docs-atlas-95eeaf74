@@ -1,0 +1,428 @@
+---
+title: Routes
+description: Defining and configuring routes in TanStack Router
+---
+
+Routes are the building blocks of your application's navigation. Each route defines a path pattern, data loading logic, and components to render.
+
+## Creating Routes
+
+Routes are created using the `createRoute` function:
+
+```tsx
+import { createRoute } from '@tanstack/react-router'
+import { rootRoute } from './root'
+
+const aboutRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/about',
+  component: AboutComponent,
+})
+```
+
+### Root Route
+
+Every route tree starts with a root route:
+
+```tsx
+import { createRootRoute } from '@tanstack/react-router'
+
+const rootRoute = createRootRoute({
+  component: () => (
+    <div>
+      <nav>{/* Navigation */}</nav>
+      <Outlet /> {/* Child routes render here */}
+    </div>
+  ),
+})
+```
+
+## Route Options
+
+### Path Configuration
+
+<ParamField path="path" type="string" required>
+  The path pattern to match. Can include parameters:
+  
+  ```tsx
+  path: '/posts/$postId'  // Path parameter
+  path: '/files/$'        // Wildcard
+  path: '/posts/{-$postId}' // Optional parameter
+  ```
+</ParamField>
+
+<ParamField path="id" type="string">
+  Custom route ID instead of using the path. Useful for routes without paths.
+</ParamField>
+
+### Components
+
+<ParamField path="component" type="React.ComponentType">
+  The component to render when this route matches.
+  
+  ```tsx
+  component: () => <div>About Page</div>
+  ```
+</ParamField>
+
+<ParamField path="pendingComponent" type="React.ComponentType">
+  Component shown while the route is loading data.
+  
+  ```tsx
+  pendingComponent: () => <div>Loading...</div>
+  ```
+</ParamField>
+
+<ParamField path="errorComponent" type="React.ComponentType<ErrorComponentProps>">
+  Component shown when an error occurs during loading or rendering.
+  
+  ```tsx
+  errorComponent: ({ error, reset }) => (
+    <div>
+      <p>Error: {error.message}</p>
+      <button onClick={reset}>Try Again</button>
+    </div>
+  )
+  ```
+</ParamField>
+
+<ParamField path="notFoundComponent" type="React.ComponentType">
+  Component shown when a child route is not found.
+  
+  ```tsx
+  notFoundComponent: () => <div>Page not found</div>
+  ```
+</ParamField>
+
+### Search Parameter Validation
+
+<ParamField path="validateSearch" type="SearchValidator">
+  Function or validator to parse and validate search parameters.
+  
+  ```tsx
+  validateSearch: (search) => ({
+    page: Number(search.page) || 1,
+    filter: search.filter as string | undefined,
+  })
+  ```
+</ParamField>
+
+### Path Parameter Parsing
+
+<ParamField path="params.parse" type="ParseParamsFn">
+  Transform path parameters from strings to typed values.
+  
+  ```tsx
+  params: {
+    parse: (params) => ({
+      postId: Number(params.postId),
+    }),
+  }
+  ```
+</ParamField>
+
+<ParamField path="params.stringify" type="StringifyParamsFn">
+  Transform typed parameters back to strings for URL generation.
+  
+  ```tsx
+  params: {
+    stringify: (params) => ({
+      postId: String(params.postId),
+    }),
+  }
+  ```
+</ParamField>
+
+## Data Loading
+
+### Context
+
+Provide data to child routes and loaders:
+
+```tsx
+const userRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/user',
+  context: ({ location }) => ({
+    userId: getUserIdFromLocation(location),
+  }),
+})
+```
+
+### Before Load
+
+Run async code before the route loads:
+
+```tsx
+const protectedRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/dashboard',
+  beforeLoad: async ({ context, location }) => {
+    if (!context.auth.isAuthenticated) {
+      throw redirect({
+        to: '/login',
+        search: { redirect: location.href },
+      })
+    }
+  },
+})
+```
+
+### Loader
+
+Fetch data for the route:
+
+```tsx
+const postRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/posts/$postId',
+  loader: async ({ params }) => {
+    const post = await fetchPost(params.postId)
+    return { post }
+  },
+})
+```
+
+Access loader data in components:
+
+```tsx
+function PostComponent() {
+  const { post } = useLoaderData({ from: '/posts/$postId' })
+  return <div>{post.title}</div>
+}
+```
+
+### Loader Dependencies
+
+Declare additional dependencies for cache keys:
+
+```tsx
+const postsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/posts',
+  loaderDeps: ({ search }) => ({
+    page: search.page,
+    filter: search.filter,
+  }),
+  loader: async ({ deps }) => {
+    const posts = await fetchPosts({
+      page: deps.page,
+      filter: deps.filter,
+    })
+    return { posts }
+  },
+})
+```
+
+## Caching Options
+
+<ParamField path="staleTime" type="number" default="0">
+  Time in milliseconds before cached data is considered stale.
+  
+  ```tsx
+  staleTime: 5000 // 5 seconds
+  ```
+</ParamField>
+
+<ParamField path="gcTime" type="number" default="1800000">
+  Time in milliseconds before unused cached data is garbage collected.
+  
+  ```tsx
+  gcTime: 30 * 60 * 1000 // 30 minutes
+  ```
+</ParamField>
+
+<ParamField path="preloadStaleTime" type="number" default="30000">
+  How long preloaded data stays fresh.
+</ParamField>
+
+<ParamField path="preloadGcTime" type="number" default="1800000">
+  How long preloaded data is cached.
+</ParamField>
+
+## Pending State
+
+<ParamField path="pendingMs" type="number" default="1000">
+  Delay in milliseconds before showing pending component.
+  
+  ```tsx
+  pendingMs: 500 // Show after 500ms
+  ```
+</ParamField>
+
+<ParamField path="pendingMinMs" type="number" default="500">
+  Minimum time in milliseconds to show pending component once displayed.
+</ParamField>
+
+## Lifecycle Hooks
+
+### onEnter
+
+Called when a route match enters the active matches:
+
+```tsx
+const route = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/analytics',
+  onEnter: (match) => {
+    trackPageView(match.pathname)
+  },
+})
+```
+
+### onStay
+
+Called when a route match stays in active matches during navigation:
+
+```tsx
+onStay: (match) => {
+  console.log('Route stayed active:', match.routeId)
+}
+```
+
+### onLeave
+
+Called when a route match leaves the active matches:
+
+```tsx
+onLeave: (match) => {
+  cleanupResources(match)
+}
+```
+
+## Lazy Loading
+
+Split route components into separate bundles:
+
+```tsx
+const postRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/posts/$postId',
+}).lazy(() => import('./post.lazy').then(d => d.postLazyRoute))
+```
+
+In `post.lazy.tsx`:
+
+```tsx
+import { createLazyRoute } from '@tanstack/react-router'
+
+export const postLazyRoute = createLazyRoute('/posts/$postId')({
+  component: PostComponent,
+})
+```
+
+## SSR Configuration
+
+<ParamField path="ssr" type="boolean | 'data-only'" default="true">
+  Control server-side rendering behavior:
+  - `true` - Full SSR
+  - `false` - Client-only
+  - `'data-only'` - SSR data but not component
+</ParamField>
+
+## Meta Tags and Headers
+
+### Head
+
+Define meta tags, links, and scripts:
+
+```tsx
+const postRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/posts/$postId',
+  head: ({ loaderData }) => ({
+    meta: [
+      { title: loaderData.post.title },
+      { name: 'description', content: loaderData.post.excerpt },
+      { property: 'og:image', content: loaderData.post.image },
+    ],
+    links: [
+      { rel: 'canonical', href: `/posts/${loaderData.post.id}` },
+    ],
+  }),
+})
+```
+
+### Headers
+
+Set HTTP response headers:
+
+```tsx
+headers: async ({ loaderData }) => ({
+  'Cache-Control': 'public, max-age=3600',
+  'X-Custom-Header': loaderData.customValue,
+})
+```
+
+## Error Handling
+
+### Error Component
+
+```tsx
+const route = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/posts/$postId',
+  errorComponent: ({ error, reset }) => (
+    <div>
+      <h1>Error Loading Post</h1>
+      <p>{error.message}</p>
+      <button onClick={reset}>Retry</button>
+    </div>
+  ),
+})
+```
+
+### onError Hook
+
+```tsx
+onError: (error) => {
+  logErrorToService(error)
+}
+```
+
+## Redirects
+
+Redirect from a route using the `redirect` helper:
+
+```tsx
+import { redirect } from '@tanstack/react-router'
+
+const oldRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/old-path',
+  beforeLoad: () => {
+    throw redirect({ to: '/new-path' })
+  },
+})
+```
+
+Or use the route's built-in redirect method:
+
+```tsx
+const postRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/posts/$postId',
+  beforeLoad: ({ params }) => {
+    if (!isValidPostId(params.postId)) {
+      throw postRoute.redirect({ to: '/posts' })
+    }
+  },
+})
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Loaders" icon="download" href="./loaders">
+    Deep dive into data loading patterns
+  </Card>
+  <Card title="Type Safety" icon="shield-check" href="./type-safety">
+    Configure end-to-end type safety
+  </Card>
+  <Card title="Navigation" icon="arrow-pointer" href="./navigation">
+    Navigate between routes programmatically
+  </Card>
+  <Card title="Path Params" icon="brackets-curly" href="./path-params">
+    Extract and validate path parameters
+  </Card>
+</CardGroup>

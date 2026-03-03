@@ -1,0 +1,295 @@
+---
+title: Vite Plugin
+---
+
+# Vite Plugin
+
+The TanStack Router Vite plugin provides seamless integration with Vite, handling route generation, code splitting, and hot module replacement automatically.
+
+## Installation
+
+```bash
+npm install @tanstack/router-plugin
+```
+
+## Basic Usage
+
+Add the plugin to your `vite.config.ts`:
+
+```ts
+import { defineConfig } from 'vite'
+import tanstackRouter from '@tanstack/router-plugin/vite'
+
+export default defineConfig({
+  plugins: [tanstackRouter()],
+})
+```
+
+## Configuration
+
+The plugin accepts a configuration object with the following options:
+
+```ts
+import { defineConfig } from 'vite'
+import tanstackRouter from '@tanstack/router-plugin/vite'
+import type { Config } from '@tanstack/router-plugin/vite'
+
+const routerConfig: Config = {
+  // Route generation options
+  routesDirectory: './src/routes',
+  generatedRouteTree: './src/routeTree.gen.ts',
+  
+  // Code splitting options
+  codeSplittingOptions: {
+    defaultBehavior: [
+      ['component'],
+      ['pendingComponent'],
+      ['errorComponent'],
+      ['notFoundComponent']
+    ],
+    addHmr: true
+  },
+  
+  // TypeScript options
+  disableTypes: false,
+  quoteStyle: 'single',
+  semicolons: false,
+}
+
+export default defineConfig({
+  plugins: [tanstackRouter(routerConfig)],
+})
+```
+
+## Configuration Options
+
+### Route Generation
+
+#### `routesDirectory`
+- **Type:** `string`
+- **Default:** `'./src/routes'`
+- The directory where your route files are located.
+
+#### `generatedRouteTree`
+- **Type:** `string`
+- **Default:** `'./src/routeTree.gen.ts'`
+- The file where the generated route tree will be written.
+
+#### `routeFilePrefix`
+- **Type:** `string`
+- **Optional**
+- A prefix to require for all route files.
+
+#### `routeFileIgnorePrefix`
+- **Type:** `string`
+- **Default:** `'-'`
+- Files starting with this prefix will be ignored during route generation.
+
+#### `routeFileIgnorePattern`
+- **Type:** `string`
+- **Optional**
+- A regex pattern to ignore specific route files.
+
+### Code Splitting
+
+#### `codeSplittingOptions`
+- **Type:** `CodeSplittingOptions`
+- **Optional**
+- Controls how routes are code-split.
+
+```ts
+type CodeSplittingOptions = {
+  splitBehavior?: (params: {
+    routeId: RouteIds<RegisteredRouter['routeTree']>
+  }) => CodeSplitGroupings | undefined | void
+  
+  defaultBehavior?: CodeSplitGroupings
+  deleteNodes?: Array<string>
+  addHmr?: boolean
+}
+```
+
+**Example with custom split behavior:**
+
+```ts
+codeSplittingOptions: {
+  // Customize splitting per route
+  splitBehavior: ({ routeId }) => {
+    if (routeId.includes('admin')) {
+      // Admin routes: split everything separately
+      return [['component'], ['loader'], ['errorComponent']]
+    }
+    // Other routes: use default
+  },
+  
+  // Default behavior for all routes
+  defaultBehavior: [
+    ['component'],
+    ['pendingComponent'],
+    ['errorComponent', 'notFoundComponent']
+  ],
+  
+  // Enable HMR for code-split routes
+  addHmr: true
+}
+```
+
+### TypeScript Options
+
+#### `disableTypes`
+- **Type:** `boolean`
+- **Default:** `false`
+- Disable TypeScript type generation.
+
+#### `quoteStyle`
+- **Type:** `'single' | 'double'`
+- **Default:** `'single'`
+- Quote style for generated code.
+
+#### `semicolons`
+- **Type:** `boolean`
+- **Default:** `false`
+- Whether to include semicolons in generated code.
+
+### Advanced Options
+
+#### `autoCodeSplitting`
+- **Type:** `boolean`
+- **Optional**
+- Enable automatic code splitting for all routes.
+
+#### `enableRouteTreeFormatting`
+- **Type:** `boolean`
+- **Default:** `true`
+- Format the generated route tree file with Prettier.
+
+#### `routeTreeFileHeader`
+- **Type:** `string[]`
+- **Default:** `['/* eslint-disable */', '// @ts-nocheck', '// noinspection JSUnusedGlobalSymbols']`
+- Lines to add at the top of the generated route tree file.
+
+#### `plugin.vite.environmentName`
+- **Type:** `string`
+- **Optional**
+- Specify a Vite environment name for the plugin.
+
+## Separate Plugins
+
+For more granular control, you can use individual plugins:
+
+### Route Generator Only
+
+```ts
+import { tanstackRouterGenerator } from '@tanstack/router-plugin/vite'
+
+export default defineConfig({
+  plugins: [tanstackRouterGenerator()],
+})
+```
+
+### Code Splitter Only
+
+```ts
+import { tanStackRouterCodeSplitter } from '@tanstack/router-plugin/vite'
+
+export default defineConfig({
+  plugins: [tanStackRouterCodeSplitter()],
+})
+```
+
+### Auto Import Plugin
+
+```ts
+import { tanstackRouterAutoImport } from '@tanstack/router-plugin/vite'
+
+export default defineConfig({
+  plugins: [tanstackRouterAutoImport()],
+})
+```
+
+## How It Works
+
+The Vite plugin combines multiple sub-plugins:
+
+1. **Route Generator**: Scans your routes directory and generates the route tree
+2. **Code Splitter**: Transforms routes for automatic code splitting
+3. **HMR Handler**: Enables hot module replacement for route updates
+4. **Auto Import**: Handles automatic imports for route components
+
+## Examples
+
+### File-Based Routing with Code Splitting
+
+```ts
+import { defineConfig } from 'vite'
+import tanstackRouter from '@tanstack/router-plugin/vite'
+
+export default defineConfig({
+  plugins: [
+    tanstackRouter({
+      routesDirectory: './src/routes',
+      generatedRouteTree: './src/routeTree.gen.ts',
+      codeSplittingOptions: {
+        defaultBehavior: [
+          ['component'],
+          ['loader'],
+          ['errorComponent']
+        ],
+      },
+    }),
+  ],
+})
+```
+
+### Custom Route File Patterns
+
+```ts
+import { defineConfig } from 'vite'
+import tanstackRouter from '@tanstack/router-plugin/vite'
+
+export default defineConfig({
+  plugins: [
+    tanstackRouter({
+      routesDirectory: './src/pages',
+      routeFilePrefix: 'page',
+      routeFileIgnorePrefix: '_',
+      routeFileIgnorePattern: '.*\\.test\\.tsx?$',
+    }),
+  ],
+})
+```
+
+### Multiple Frameworks
+
+```ts
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import tanstackRouter from '@tanstack/router-plugin/vite'
+
+export default defineConfig({
+  plugins: [
+    react(),
+    tanstackRouter(),
+  ],
+})
+```
+
+## Troubleshooting
+
+### Routes Not Generated
+
+Ensure your `routesDirectory` path is correct and relative to your project root.
+
+### TypeScript Errors
+
+Make sure the generated route tree file is included in your `tsconfig.json`:
+
+```json
+{
+  "include": ["src/**/*", "src/routeTree.gen.ts"]
+}
+```
+
+### HMR Not Working
+
+Check that `codeSplittingOptions.addHmr` is enabled (it's `true` by default).

@@ -1,0 +1,361 @@
+---
+title: "Zod Adapter"
+description: "Validate search parameters with Zod in TanStack Router"
+---
+
+The Zod adapter enables type-safe search parameter validation using [Zod](https://zod.dev), the most popular TypeScript-first schema validation library.
+
+## Installation
+
+Install both the Zod adapter and Zod itself:
+
+<CodeGroup>
+
+```bash npm
+npm install @tanstack/zod-adapter zod
+```
+
+```bash pnpm
+pnpm add @tanstack/zod-adapter zod
+```
+
+```bash yarn
+yarn add @tanstack/zod-adapter zod
+```
+
+</CodeGroup>
+
+## Basic Usage
+
+Import the `zodValidator` function and pass it a Zod schema:
+
+```tsx
+import { createRoute } from '@tanstack/react-router'
+import { zodValidator } from '@tanstack/zod-adapter'
+import { z } from 'zod'
+
+const invoicesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'invoices',
+  validateSearch: zodValidator(
+    z.object({
+      page: z.number(),
+      filter: z.string().optional(),
+    }),
+  ),
+})
+```
+
+Now your search parameters are validated and typed:
+
+```tsx
+function Invoices() {
+  const search = invoicesRoute.useSearch()
+  // search.page is number
+  // search.filter is string | undefined
+  
+  return <div>Page {search.page}</div>
+}
+```
+
+## Using Zod Schemas Directly
+
+You can also pass Zod schemas directly without the adapter for simpler use cases:
+
+```tsx
+import { z } from 'zod'
+
+const invoicesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'invoices',
+  validateSearch: z.object({
+    page: z.number(),
+  }),
+})
+```
+
+TanStack Router automatically detects Zod schemas and handles them appropriately.
+
+## Advanced Validation
+
+Zod provides powerful validation features that work seamlessly with TanStack Router:
+
+### String Transformations
+
+```tsx
+zodValidator(
+  z.object({
+    email: z.string().email(),
+    username: z.string().min(3).max(20),
+    role: z.enum(['admin', 'user', 'guest']),
+  }),
+)
+```
+
+### Number Validation
+
+```tsx
+zodValidator(
+  z.object({
+    page: z.number().int().positive(),
+    limit: z.number().min(1).max(100).default(10),
+    price: z.number().multipleOf(0.01), // Currency with 2 decimals
+  }),
+)
+```
+
+### Date Handling
+
+```tsx
+zodValidator(
+  z.object({
+    startDate: z.coerce.date(),
+    endDate: z.coerce.date(),
+  }),
+)
+```
+
+### Arrays and Complex Types
+
+```tsx
+zodValidator(
+  z.object({
+    tags: z.array(z.string()),
+    filters: z.object({
+      status: z.enum(['active', 'pending', 'completed']),
+      priority: z.number().optional(),
+    }),
+  }),
+)
+```
+
+## Default Values
+
+Use Zod's `.default()` or `.catch()` methods to provide fallback values:
+
+```tsx
+zodValidator(
+  z.object({
+    page: z.number().default(1),
+    sort: z.enum(['asc', 'desc']).default('asc'),
+  }),
+)
+```
+
+## Fallback Helper
+
+The Zod adapter includes a `fallback` helper for graceful error handling:
+
+```tsx
+import { zodValidator, fallback } from '@tanstack/zod-adapter'
+import { z } from 'zod'
+
+zodValidator(
+  z.object({
+    page: fallback(z.number(), 1),
+    query: fallback(z.string(), ''),
+  }),
+)
+```
+
+If parsing fails, the fallback value is used instead of throwing an error.
+
+## Input/Output Types
+
+Control whether you want input or output types from your schema:
+
+```tsx
+const schema = z.object({
+  date: z.string().transform((str) => new Date(str)),
+})
+
+// Use output types (default)
+zodValidator({
+  schema,
+  output: 'output', // date is Date
+})
+
+// Use input types
+zodValidator({
+  schema,
+  output: 'input', // date is string
+})
+```
+
+## Type Safety
+
+The Zod adapter provides complete type inference:
+
+```tsx
+const schema = z.object({
+  page: z.number(),
+  filter: z.string().optional(),
+})
+
+const route = createRoute({
+  path: '/search',
+  validateSearch: zodValidator(schema),
+})
+
+// Fully typed in components
+function SearchPage() {
+  const { page, filter } = route.useSearch()
+  //      ^? number
+  //            ^? string | undefined
+}
+
+// Typed navigation
+<Link 
+  to="/search" 
+  search={{ 
+    page: 1,  // ✓ Valid
+    filter: 'active',  // ✓ Valid
+    // @ts-expect-error - invalid is not in schema
+    invalid: true,  // ✗ Type error
+  }}
+>
+  Search
+</Link>
+```
+
+## Validation in Functions
+
+You can also use Zod validation in a function for more control:
+
+```tsx
+const route = createRoute({
+  path: '/invoices',
+  validateSearch: (input) => {
+    return z.object({
+      page: z.number(),
+    }).parse(input)
+  },
+})
+```
+
+## Error Handling
+
+When validation fails, Zod throws a `ZodError` with detailed information:
+
+```tsx
+import { zodValidator } from '@tanstack/zod-adapter'
+import { z } from 'zod'
+
+// This will fail if page is not a valid number
+zodValidator(
+  z.object({
+    page: z.number(),
+  }),
+)
+
+// You can catch and handle validation errors
+try {
+  // Invalid navigation attempt
+} catch (error) {
+  if (error instanceof z.ZodError) {
+    console.log('Validation errors:', error.errors)
+  }
+}
+```
+
+## Real-World Example
+
+Here's a complete example with pagination, filtering, and sorting:
+
+```tsx
+import { createRoute, Link } from '@tanstack/react-router'
+import { zodValidator } from '@tanstack/zod-adapter'
+import { z } from 'zod'
+
+const invoicesSearchSchema = z.object({
+  page: z.number().int().positive().default(1),
+  limit: z.number().int().min(10).max(100).default(25),
+  sort: z.enum(['date', 'amount', 'customer']).default('date'),
+  order: z.enum(['asc', 'desc']).default('desc'),
+  status: z.enum(['paid', 'pending', 'overdue']).optional(),
+  search: z.string().optional(),
+})
+
+const invoicesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'invoices',
+  validateSearch: zodValidator(invoicesSearchSchema),
+  component: Invoices,
+})
+
+function Invoices() {
+  const search = invoicesRoute.useSearch()
+  
+  return (
+    <div>
+      <h1>Invoices - Page {search.page}</h1>
+      
+      <Link
+        to="/invoices"
+        search={{
+          ...search,
+          page: search.page + 1,
+        }}
+      >
+        Next Page
+      </Link>
+      
+      <Link
+        to="/invoices"
+        search={{
+          ...search,
+          status: 'overdue',
+        }}
+      >
+        Show Overdue
+      </Link>
+    </div>
+  )
+}
+```
+
+## API Reference
+
+### `zodValidator(schema)`
+
+Creates a validator adapter from a Zod schema.
+
+**Parameters:**
+- `schema` - A Zod schema or options object
+
+**Returns:**
+- A `ValidatorAdapter` that can be used with `validateSearch`
+
+### `zodValidator(options)`
+
+Advanced usage with options.
+
+**Parameters:**
+- `options.schema` - The Zod schema
+- `options.input` - Whether to use input or output types (default: `'input'`)
+- `options.output` - Whether to use input or output types (default: `'output'`)
+
+### `fallback(schema, fallbackValue)`
+
+Creates a schema that returns a fallback value on validation error.
+
+**Parameters:**
+- `schema` - A Zod schema
+- `fallbackValue` - The value to use if validation fails
+
+**Returns:**
+- A Zod pipeline that catches errors and returns the fallback
+
+## Next Steps
+
+<CardGroup cols={2}>
+
+<Card title="Valibot Adapter" icon="v" href="/router/validation/valibot">
+  Lightweight alternative to Zod
+</Card>
+
+<Card title="Search Params Guide" icon="magnifying-glass" href="/router/concepts/search-params">
+  Learn more about search parameters
+</Card>
+
+</CardGroup>

@@ -1,0 +1,366 @@
+---
+title: ESLint Plugin
+---
+
+# ESLint Plugin
+
+The TanStack Router ESLint plugin provides linting rules to catch common mistakes and enforce best practices when using TanStack Router.
+
+## Installation
+
+```bash
+npm install -D @tanstack/eslint-plugin-router eslint
+```
+
+## Setup
+
+### Flat Config (ESLint 9+)
+
+For ESLint 9+ using the flat config format:
+
+```js
+import tanstackRouter from '@tanstack/eslint-plugin-router'
+
+export default [
+  ...tanstackRouter.configs['flat/recommended'],
+]
+```
+
+Or configure manually:
+
+```js
+import tanstackRouter from '@tanstack/eslint-plugin-router'
+
+export default [
+  {
+    plugins: {
+      '@tanstack/router': tanstackRouter,
+    },
+    rules: {
+      '@tanstack/router/create-route-property-order': 'warn',
+      '@tanstack/router/route-param-names': 'error',
+    },
+  },
+]
+```
+
+### Legacy Config (ESLint 8)
+
+For ESLint 8 using `.eslintrc.js`:
+
+```js
+module.exports = {
+  extends: ['plugin:@tanstack/router/recommended'],
+}
+```
+
+Or configure manually:
+
+```js
+module.exports = {
+  plugins: ['@tanstack/router'],
+  rules: {
+    '@tanstack/router/create-route-property-order': 'warn',
+    '@tanstack/router/route-param-names': 'error',
+  },
+}
+```
+
+## Rules
+
+The plugin includes the following rules:
+
+### `create-route-property-order`
+
+**Severity:** `warn` (in recommended config)
+
+Ensures correct order of inference-sensitive properties for `createRoute` functions.
+
+TanStack Router uses TypeScript's type inference, and the order of properties in route configurations affects type inference. This rule enforces the correct order.
+
+**Incorrect:**
+
+```ts
+import { createRoute } from '@tanstack/react-router'
+
+const route = createRoute({
+  component: MyComponent,
+  beforeLoad: () => ({ foo: 'bar' }),
+  getParentRoute: () => rootRoute,
+  path: '/about',
+})
+```
+
+**Correct:**
+
+```ts
+import { createRoute } from '@tanstack/react-router'
+
+const route = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/about',
+  beforeLoad: () => ({ foo: 'bar' }),
+  component: MyComponent,
+})
+```
+
+**Auto-fix:** This rule provides automatic fixes to reorder properties correctly.
+
+**Applies to:**
+- `createRoute()`
+- `createRootRoute()`
+- `createFileRoute()()`
+- `createRootRouteWithContext()()`
+- `createLazyRoute()()`
+- `createLazyFileRoute()()`
+
+### `route-param-names`
+
+**Severity:** `error` (in recommended config)
+
+Ensures route param names are valid JavaScript identifiers.
+
+Route parameters are extracted and used as object properties in your code. They must be valid JavaScript identifiers to avoid runtime errors.
+
+**Incorrect:**
+
+```ts
+import { createRoute } from '@tanstack/react-router'
+
+// Invalid: hyphens not allowed
+const route = createRoute({
+  path: '/users/$user-id',
+})
+
+// Invalid: dots not allowed
+const route = createFileRoute('/posts/$post.id')()
+
+// Invalid: starts with number
+const route = createRoute({
+  path: '/items/$123abc',
+})
+```
+
+**Correct:**
+
+```ts
+import { createRoute } from '@tanstack/react-router'
+
+// Valid identifier
+const route = createRoute({
+  path: '/users/$userId',
+})
+
+// Valid identifier with underscore
+const route = createFileRoute('/posts/$post_id')()
+
+// Valid identifier starting with letter
+const route = createRoute({
+  path: '/items/$abc123',
+})
+```
+
+**Valid identifier rules:**
+- Must start with a letter, underscore (`_`), or dollar sign (`$`)
+- Can contain letters, numbers, underscores, and dollar signs
+- Cannot contain hyphens, dots, or other special characters
+- Cannot start with a number
+- Regex pattern: `/[a-zA-Z_$][a-zA-Z0-9_$]*/`
+
+**Applies to:**
+- `createRoute({ path: '...' })`
+- `createFileRoute('...')(...)`
+- `createRootRoute({ path: '...' })`
+- `createLazyRoute({ path: '...' })`
+- `createLazyFileRoute('...')(...)`
+
+## Configuration
+
+You can customize rule severity in your ESLint config:
+
+### Flat Config
+
+```js
+import tanstackRouter from '@tanstack/eslint-plugin-router'
+
+export default [
+  {
+    plugins: {
+      '@tanstack/router': tanstackRouter,
+    },
+    rules: {
+      // Change to error
+      '@tanstack/router/create-route-property-order': 'error',
+      
+      // Disable the rule
+      '@tanstack/router/route-param-names': 'off',
+    },
+  },
+]
+```
+
+### Legacy Config
+
+```js
+module.exports = {
+  rules: {
+    // Change to error
+    '@tanstack/router/create-route-property-order': 'error',
+    
+    // Disable the rule
+    '@tanstack/router/route-param-names': 'off',
+  },
+}
+```
+
+## Framework Support
+
+The plugin automatically detects TanStack Router imports from:
+
+- `@tanstack/react-router`
+- `@tanstack/solid-router`
+- `@tanstack/vue-router`
+- Any custom package with `router` in the name
+
+Rules only apply when they detect you're using TanStack Router.
+
+## Examples
+
+### Full Flat Config Example
+
+```js
+import tanstackRouter from '@tanstack/eslint-plugin-router'
+import tseslint from 'typescript-eslint'
+
+export default [
+  ...tseslint.configs.recommended,
+  ...tanstackRouter.configs['flat/recommended'],
+  {
+    rules: {
+      // Custom overrides
+      '@tanstack/router/create-route-property-order': 'error',
+    },
+  },
+]
+```
+
+### Full Legacy Config Example
+
+```js
+module.exports = {
+  parser: '@typescript-eslint/parser',
+  extends: [
+    'eslint:recommended',
+    'plugin:@typescript-eslint/recommended',
+    'plugin:@tanstack/router/recommended',
+  ],
+  rules: {
+    // Custom overrides
+    '@tanstack/router/create-route-property-order': 'error',
+  },
+}
+```
+
+### With React and TypeScript
+
+```js
+import js from '@eslint/js'
+import reactPlugin from 'eslint-plugin-react'
+import tseslint from 'typescript-eslint'
+import tanstackRouter from '@tanstack/eslint-plugin-router'
+
+export default [
+  js.configs.recommended,
+  ...tseslint.configs.recommended,
+  reactPlugin.configs.flat.recommended,
+  ...tanstackRouter.configs['flat/recommended'],
+  {
+    settings: {
+      react: {
+        version: 'detect',
+      },
+    },
+  },
+]
+```
+
+## IDE Integration
+
+### VS Code
+
+Install the [ESLint extension](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint).
+
+The plugin's auto-fix for `create-route-property-order` will work with VS Code's "Fix on Save" feature:
+
+```json
+{
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": true
+  }
+}
+```
+
+### IntelliJ IDEA / WebStorm
+
+ESLint integration is built-in. Enable it in:
+
+**Settings → Languages & Frameworks → JavaScript → Code Quality Tools → ESLint**
+
+## Troubleshooting
+
+### Rules Not Running
+
+If rules aren't running, check:
+
+1. ESLint is installed and configured correctly
+2. The plugin is added to your ESLint config
+3. Your files are included in ESLint's file patterns
+4. You're importing from a TanStack Router package
+
+### False Positives
+
+If you get warnings/errors when not using TanStack Router:
+
+1. The plugin should auto-detect imports
+2. Make sure you're not using function names like `createRoute` without importing from TanStack Router
+3. If needed, disable specific rules for certain files using overrides
+
+### Auto-fix Not Working
+
+For `create-route-property-order`, auto-fix should work automatically. If it doesn't:
+
+1. Check your ESLint version is compatible
+2. Make sure your IDE's ESLint integration is enabled
+3. Try running `eslint --fix` from the command line
+
+### TypeScript Errors
+
+The ESLint plugin is independent of TypeScript. If you have TypeScript errors after auto-fixing:
+
+1. The auto-fix may have revealed existing type issues
+2. Run `tsc --noEmit` to check for type errors
+3. The correct property order often improves type inference
+
+## Versioning
+
+The plugin follows TanStack Router's versioning. Use matching major versions:
+
+- `@tanstack/router-plugin@1.x` → `@tanstack/eslint-plugin-router@1.x`
+- `@tanstack/react-router@1.x` → `@tanstack/eslint-plugin-router@1.x`
+
+## Contributing
+
+To suggest new rules or report issues:
+
+1. Visit the [TanStack Router GitHub repository](https://github.com/TanStack/router)
+2. Search existing issues
+3. Create a new issue with:
+   - Description of the problem
+   - Example code that should be caught
+   - Suggested error message
+
+## Further Reading
+
+- [ESLint Documentation](https://eslint.org/docs/latest/)
+- [TanStack Router Type Safety Guide](../guide/type-safety)
+- [TanStack Router Route Configuration](../guide/routes)

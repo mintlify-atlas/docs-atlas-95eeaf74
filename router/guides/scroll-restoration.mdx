@@ -1,0 +1,401 @@
+---
+title: Scroll restoration
+description: Manage scroll position across navigation and browser history
+---
+
+Scroll restoration automatically manages scroll position when users navigate between routes, maintaining a smooth browsing experience.
+
+## Automatic scroll restoration
+
+TanStack Router automatically scrolls to top on navigation by default:
+
+```tsx
+import { createRouter } from '@tanstack/react-router'
+
+const router = createRouter({
+  routeTree,
+  // Default scroll behavior (scroll to top)
+  defaultScrollRestoration: 'top',
+})
+```
+
+## Scroll restoration options
+
+Configure global scroll behavior:
+
+```tsx
+const router = createRouter({
+  routeTree,
+  defaultScrollRestoration: 'auto', // Browser default
+  // Or:
+  // 'top' - Always scroll to top
+  // false - Don't restore scroll
+})
+```
+
+## Per-route scroll behavior
+
+Override scroll behavior for specific routes:
+
+```tsx
+export const Route = createFileRoute('/posts/$postId')({
+  component: Post,
+  // Don't scroll on this route
+  scrollRestoration: false,
+})
+```
+
+## Custom scroll restoration
+
+Implement custom scroll logic:
+
+```tsx
+import { ScrollRestoration } from '@tanstack/react-router'
+
+function RootComponent() {
+  return (
+    <>
+      <Outlet />
+      <ScrollRestoration
+        getKey={(location) => {
+          // Restore scroll per path
+          return location.pathname
+          
+          // Or per path + search params
+          // return location.pathname + location.search
+        }}
+      />
+    </>
+  )
+}
+```
+
+## Scroll to hash
+
+Automatically scroll to hash fragments:
+
+```tsx
+import { Link } from '@tanstack/react-router'
+
+function TableOfContents() {
+  return (
+    <nav>
+      <Link to="/docs" hash="#introduction">
+        Introduction
+      </Link>
+      <Link to="/docs" hash="#getting-started">
+        Getting Started
+      </Link>
+    </nav>
+  )
+}
+```
+
+## Programmatic scrolling
+
+Control scroll position during navigation:
+
+```tsx
+import { useNavigate } from '@tanstack/react-router'
+
+function JumpToSection() {
+  const navigate = useNavigate()
+  
+  const goToSection = () => {
+    navigate({
+      to: '/docs',
+      hash: '#advanced',
+      // Control scroll behavior
+      replace: false,
+    })
+  }
+  
+  return <button onClick={goToSection}>Jump to Advanced</button>
+}
+```
+
+## Preserve scroll on navigation
+
+Keep scroll position when navigating:
+
+```tsx
+import { Link } from '@tanstack/react-router'
+
+function Pagination() {
+  return (
+    <div>
+      <Link
+        to="/posts"
+        search={{ page: 2 }}
+        // Prevent scroll to top
+        resetScroll={false}
+      >
+        Next Page
+      </Link>
+    </div>
+  )
+}
+```
+
+## Smooth scrolling
+
+Use smooth scroll behavior:
+
+```css
+html {
+  scroll-behavior: smooth;
+}
+```
+
+Or control via JavaScript:
+
+```tsx
+function smoothScrollTo(element: HTMLElement) {
+  element.scrollIntoView({
+    behavior: 'smooth',
+    block: 'start',
+  })
+}
+```
+
+## Scroll on route update
+
+Scroll when route params change:
+
+```tsx
+function PostComponent() {
+  const { postId } = Route.useParams()
+  const scrollRef = React.useRef<HTMLDivElement>(null)
+  
+  React.useEffect(() => {
+    // Scroll to top when post changes
+    scrollRef.current?.scrollTo({
+      top: 0,
+      behavior: 'smooth',
+    })
+  }, [postId])
+  
+  return (
+    <div ref={scrollRef} className="scrollable">
+      <Post postId={postId} />
+    </div>
+  )
+}
+```
+
+## Scroll position tracking
+
+Track scroll position for analytics:
+
+```tsx
+import { useRouterState } from '@tanstack/react-router'
+
+function useScrollTracking() {
+  const location = useRouterState({ select: (s) => s.location })
+  
+  React.useEffect(() => {
+    const handleScroll = () => {
+      const scrollPercentage = 
+        (window.scrollY / (document.body.scrollHeight - window.innerHeight)) * 100
+      
+      // Track scroll depth
+      if (scrollPercentage > 75) {
+        analytics.track('Scrolled 75%', {
+          path: location.pathname,
+        })
+      }
+    }
+    
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [location.pathname])
+}
+```
+
+## Scroll restoration with layouts
+
+Handle scroll in nested layouts:
+
+```tsx
+function DashboardLayout() {
+  const scrollRef = React.useRef<HTMLDivElement>(null)
+  const location = useRouterState({ select: (s) => s.location })
+  
+  React.useEffect(() => {
+    // Scroll layout container to top on route change
+    scrollRef.current?.scrollTo({ top: 0 })
+  }, [location.pathname])
+  
+  return (
+    <div>
+      <Sidebar />
+      <main ref={scrollRef} className="scrollable-content">
+        <Outlet />
+      </main>
+    </div>
+  )
+}
+```
+
+## Skip to content
+
+Implement accessibility skip links:
+
+```tsx
+function RootLayout() {
+  return (
+    <>
+      <a href="#main-content" className="skip-link">
+        Skip to main content
+      </a>
+      <Header />
+      <main id="main-content" tabIndex={-1}>
+        <Outlet />
+      </main>
+    </>
+  )
+}
+```
+
+```css
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: #000;
+  color: #fff;
+  padding: 8px;
+  z-index: 100;
+}
+
+.skip-link:focus {
+  top: 0;
+}
+```
+
+## Infinite scroll
+
+Implement infinite scroll with scroll restoration:
+
+```tsx
+function PostsList() {
+  const { page = 1 } = Route.useSearch()
+  const navigate = useNavigate()
+  const posts = Route.useLoaderData()
+  
+  const loadMore = () => {
+    navigate({
+      search: { page: page + 1 },
+      resetScroll: false, // Keep scroll position
+    })
+  }
+  
+  React.useEffect(() => {
+    const handleScroll = () => {
+      const bottom = 
+        window.innerHeight + window.scrollY >= document.body.scrollHeight - 100
+      
+      if (bottom) loadMore()
+    }
+    
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [page])
+  
+  return (
+    <div>
+      {posts.map((post) => (
+        <PostCard key={post.id} post={post} />
+      ))}
+    </div>
+  )
+}
+```
+
+## Best practices
+
+<Accordion title="Use hash links for same-page navigation">
+Hash links provide native browser scroll behavior and work without JavaScript.
+</Accordion>
+
+<Accordion title="Preserve scroll for pagination">
+Use `resetScroll={false}` when navigating between pages of content.
+</Accordion>
+
+<Accordion title="Restore scroll on back button">
+Let the browser handle scroll restoration for back/forward navigation.
+</Accordion>
+
+<Accordion title="Test on mobile devices">
+Scroll behavior can differ significantly on mobile - always test there.
+</Accordion>
+
+## Common patterns
+
+### Scroll to top button
+
+```tsx
+function ScrollToTop() {
+  const [show, setShow] = React.useState(false)
+  
+  React.useEffect(() => {
+    const handleScroll = () => {
+      setShow(window.scrollY > 300)
+    }
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
+  
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+  
+  if (!show) return null
+  
+  return (
+    <button onClick={scrollToTop} className="scroll-to-top">
+      ↑ Back to Top
+    </button>
+  )
+}
+```
+
+### Remember scroll position
+
+```tsx
+const scrollPositions = new Map<string, number>()
+
+function useScrollMemory(key: string) {
+  const ref = React.useRef<HTMLDivElement>(null)
+  
+  // Restore scroll position
+  React.useEffect(() => {
+    const savedPosition = scrollPositions.get(key)
+    if (savedPosition && ref.current) {
+      ref.current.scrollTop = savedPosition
+    }
+  }, [key])
+  
+  // Save scroll position on unmount
+  React.useEffect(() => {
+    return () => {
+      if (ref.current) {
+        scrollPositions.set(key, ref.current.scrollTop)
+      }
+    }
+  }, [key])
+  
+  return ref
+}
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Navigation" icon="arrow-right" href="/router/concepts/navigation">
+    Learn navigation patterns
+  </Card>
+  <Card title="Link component" icon="link" href="/router/api/link">
+    Explore Link API
+  </Card>
+</CardGroup>

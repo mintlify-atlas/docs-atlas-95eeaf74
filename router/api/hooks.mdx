@@ -1,0 +1,468 @@
+---
+title: Hooks
+---
+
+# Hooks API
+
+Type-safe hooks for accessing router state and navigation.
+
+## `useRouter`
+
+Access the current TanStack Router instance from React context.
+
+```tsx
+import { useRouter } from '@tanstack/react-router'
+
+function MyComponent() {
+  const router = useRouter()
+  
+  const handleInvalidate = () => {
+    router.invalidate()
+  }
+  
+  return <button onClick={handleInvalidate}>Refresh Data</button>
+}
+```
+
+### Options
+
+<ParamField path="warn" type="boolean" default="true">
+  Log a warning if no router context is found.
+</ParamField>
+
+### Returns
+
+<ResponseField name="router" type="Router">
+  The registered router instance with methods like `navigate`, `invalidate`, `preloadRoute`, etc.
+</ResponseField>
+
+## `useNavigate`
+
+Imperative navigation hook.
+
+```tsx
+import { useNavigate } from '@tanstack/react-router'
+
+function MyComponent() {
+  const navigate = useNavigate()
+  
+  const goToPosts = () => {
+    navigate({ to: '/posts', search: { page: 1 } })
+  }
+  
+  return <button onClick={goToPosts}>View Posts</button>
+}
+```
+
+### Options
+
+<ParamField path="from" type="string">
+  Optional route base used to resolve relative `to` paths.
+
+  ```tsx
+  const navigate = useNavigate({ from: '/posts' })
+  navigate({ to: './create' }) // navigates to /posts/create
+  ```
+</ParamField>
+
+### Returns
+
+<ResponseField name="navigate" type="Function">
+  A stable function that accepts `NavigateOptions`:
+  - `to` - Destination route path
+  - `params` - Path parameters
+  - `search` - Search parameters (object or updater function)
+  - `hash` - Hash fragment
+  - `state` - History state
+  - `replace` - Replace history entry instead of push
+  - `resetScroll` - Reset scroll position
+  - `viewTransition` - Use View Transitions API
+</ResponseField>
+
+## `useParams`
+
+Access the current route's path parameters with type-safety.
+
+```tsx
+import { useParams } from '@tanstack/react-router'
+
+function PostComponent() {
+  const { postId } = useParams({ from: '/posts/$postId' })
+  return <div>Post ID: {postId}</div>
+}
+```
+
+### Options
+
+<ParamField path="from" type="string">
+  The route path to get params from. Enables strict typing.
+
+  ```tsx
+  const params = useParams({ from: '/posts/$postId' })
+  // params is typed as { postId: string }
+  ```
+</ParamField>
+
+<ParamField path="strict" type="boolean" default="true">
+  If `true`, only the route's own params are returned. If `false`, all params from parent routes are included.
+</ParamField>
+
+<ParamField path="select" type="(params) => any">
+  Project the params object to a derived value for memoized renders.
+
+  ```tsx
+  const postId = useParams({
+    from: '/posts/$postId',
+    select: (params) => params.postId,
+  })
+  ```
+</ParamField>
+
+<ParamField path="structuralSharing" type="boolean">
+  Enable structural sharing for stable references.
+</ParamField>
+
+### Returns
+
+<ResponseField name="params" type="object">
+  The params object (or selected value) for the matched route.
+</ResponseField>
+
+## `useSearch`
+
+Read and select the current route's search parameters with type-safety.
+
+```tsx
+import { useSearch } from '@tanstack/react-router'
+
+function PostsComponent() {
+  const { page, filter } = useSearch({ from: '/posts' })
+  return <div>Page {page}</div>
+}
+```
+
+### Options
+
+<ParamField path="from" type="string">
+  The route path to get search params from. Enables strict typing.
+
+  ```tsx
+  const search = useSearch({ from: '/posts' })
+  // search is typed based on the route's validateSearch
+  ```
+</ParamField>
+
+<ParamField path="strict" type="boolean" default="true">
+  Control which route's search is read and how strictly it's typed.
+</ParamField>
+
+<ParamField path="select" type="(search) => any">
+  Map the search object to a derived value for render optimization.
+
+  ```tsx
+  const page = useSearch({
+    from: '/posts',
+    select: (search) => search.page,
+  })
+  ```
+</ParamField>
+
+<ParamField path="structuralSharing" type="boolean">
+  Enable structural sharing for stable references.
+</ParamField>
+
+### Returns
+
+<ResponseField name="search" type="object">
+  The search object (or selected value) for the matched route.
+</ResponseField>
+
+## `useLoaderData`
+
+Read and select the current route's loader data with type-safety.
+
+```tsx
+import { useLoaderData } from '@tanstack/react-router'
+
+function PostComponent() {
+  const { post } = useLoaderData({ from: '/posts/$postId' })
+  return <h1>{post.title}</h1>
+}
+```
+
+### Options
+
+<ParamField path="from" type="string">
+  The route path to get loader data from. Enables strict typing.
+
+  ```tsx
+  const data = useLoaderData({ from: '/posts/$postId' })
+  // data is typed based on the route's loader return type
+  ```
+</ParamField>
+
+<ParamField path="strict" type="boolean" default="true">
+  Choose which route's data to read and strictness.
+</ParamField>
+
+<ParamField path="select" type="(data) => any">
+  Map the loader data to a derived value.
+
+  ```tsx
+  const title = useLoaderData({
+    from: '/posts/$postId',
+    select: (data) => data.post.title,
+  })
+  ```
+</ParamField>
+
+<ParamField path="structuralSharing" type="boolean">
+  Enable structural sharing for stable references.
+</ParamField>
+
+### Returns
+
+<ResponseField name="data" type="any">
+  The loader data (or selected value) for the matched route.
+</ResponseField>
+
+## `useLoaderDeps`
+
+Access the current route's loader dependencies.
+
+```tsx
+import { useLoaderDeps } from '@tanstack/react-router'
+
+function PostsComponent() {
+  const { page } = useLoaderDeps({ from: '/posts' })
+  return <div>Current page: {page}</div>
+}
+```
+
+### Options
+
+<ParamField path="from" type="string">
+  The route path to get loader deps from.
+</ParamField>
+
+<ParamField path="strict" type="boolean" default="true">
+  Control strictness of typing.
+</ParamField>
+
+<ParamField path="select" type="(deps) => any">
+  Map the deps to a derived value.
+</ParamField>
+
+### Returns
+
+<ResponseField name="deps" type="any">
+  The loader dependencies for the matched route.
+</ResponseField>
+
+## `useMatch`
+
+Get the current route match data.
+
+```tsx
+import { useMatch } from '@tanstack/react-router'
+
+function MyComponent() {
+  const match = useMatch({ from: '/posts/$postId' })
+  
+  return (
+    <div>
+      <div>Route ID: {match.routeId}</div>
+      <div>Status: {match.status}</div>
+    </div>
+  )
+}
+```
+
+### Options
+
+<ParamField path="from" type="string">
+  The route path to match against.
+</ParamField>
+
+<ParamField path="strict" type="boolean" default="true">
+  Whether to enforce strict typing.
+</ParamField>
+
+<ParamField path="select" type="(match) => any">
+  Select a derived value from the match.
+
+  ```tsx
+  const status = useMatch({
+    from: '/posts/$postId',
+    select: (match) => match.status,
+  })
+  ```
+</ParamField>
+
+<ParamField path="structuralSharing" type="boolean">
+  Enable structural sharing for stable references.
+</ParamField>
+
+### Returns
+
+<ResponseField name="match" type="RouteMatch">
+  The route match object containing:
+  - `id` - Unique match identifier
+  - `routeId` - The route's ID
+  - `pathname` - The matched pathname
+  - `params` - Path parameters
+  - `search` - Search parameters
+  - `loaderData` - Data from the loader
+  - `status` - Match status ('pending' | 'success' | 'error')
+  - And more...
+</ResponseField>
+
+## `useLocation`
+
+Get the current location object.
+
+```tsx
+import { useLocation } from '@tanstack/react-router'
+
+function MyComponent() {
+  const location = useLocation()
+  
+  return (
+    <div>
+      <div>Pathname: {location.pathname}</div>
+      <div>Search: {JSON.stringify(location.search)}</div>
+      <div>Hash: {location.hash}</div>
+    </div>
+  )
+}
+```
+
+### Returns
+
+<ResponseField name="location" type="ParsedLocation">
+  The current location object with:
+  - `href` - The full URL path
+  - `pathname` - The pathname
+  - `search` - Parsed search parameters
+  - `searchStr` - Raw search string
+  - `hash` - The hash fragment
+  - `state` - History state
+</ResponseField>
+
+## `useRouterState`
+
+Subscribe to router state with optional selection.
+
+```tsx
+import { useRouterState } from '@tanstack/react-router'
+
+function MyComponent() {
+  const isLoading = useRouterState({
+    select: (state) => state.isLoading,
+  })
+  
+  return isLoading ? <div>Loading...</div> : null
+}
+```
+
+### Options
+
+<ParamField path="select" type="(state) => any">
+  Select a derived value from the router state.
+
+  ```tsx
+  const matches = useRouterState({
+    select: (state) => state.matches,
+  })
+  ```
+</ParamField>
+
+<ParamField path="structuralSharing" type="boolean">
+  Enable structural sharing for stable references.
+</ParamField>
+
+### Returns
+
+<ResponseField name="state" type="RouterState | any">
+  The router state (or selected value) containing:
+  - `status` - Router status ('pending' | 'idle')
+  - `isLoading` - Whether the router is loading
+  - `isTransitioning` - Whether a navigation is in progress
+  - `matches` - Current route matches
+  - `location` - Current location
+  - `resolvedLocation` - Resolved location after redirects
+</ResponseField>
+
+## `useRouteContext`
+
+Access the current route's context.
+
+```tsx
+import { useRouteContext } from '@tanstack/react-router'
+
+function MyComponent() {
+  const context = useRouteContext({ from: '/posts/$postId' })
+  
+  return <div>User: {context.user.name}</div>
+}
+```
+
+### Options
+
+<ParamField path="from" type="string">
+  The route path to get context from.
+</ParamField>
+
+<ParamField path="strict" type="boolean" default="true">
+  Whether to enforce strict typing.
+</ParamField>
+
+<ParamField path="select" type="(context) => any">
+  Select a derived value from the context.
+
+  ```tsx
+  const user = useRouteContext({
+    from: '/posts',
+    select: (context) => context.user,
+  })
+  ```
+</ParamField>
+
+### Returns
+
+<ResponseField name="context" type="any">
+  The route context object.
+</ResponseField>
+
+## `useBlocker`
+
+Block navigation based on a condition.
+
+```tsx
+import { useBlocker } from '@tanstack/react-router'
+
+function FormComponent() {
+  const [isDirty, setIsDirty] = useState(false)
+  
+  useBlocker({
+    condition: isDirty,
+    blockerFn: () => window.confirm('You have unsaved changes. Leave anyway?'),
+  })
+  
+  return <form>{/* form fields */}</form>
+}
+```
+
+### Options
+
+<ParamField path="condition" type="boolean" required>
+  Whether to block navigation.
+</ParamField>
+
+<ParamField path="blockerFn" type="() => boolean | Promise<boolean>" required>
+  A function that returns `true` to allow navigation or `false` to block it.
+</ParamField>
+
+### Returns
+
+Void. The hook sets up the blocker internally.

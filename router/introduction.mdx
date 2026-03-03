@@ -1,0 +1,129 @@
+---
+title: Introduction to TanStack Router
+description: A type-safe router with built-in caching and URL state management for React applications
+---
+
+TanStack Router is a modern routing library for React that brings type-safety, built-in caching, and powerful URL state management to your applications.
+
+## Why TanStack Router?
+
+TanStack Router goes beyond traditional routing solutions by providing:
+
+- **100% Type-Safe**: Full TypeScript support with automatic type inference for routes, params, and search parameters
+- **Built-in Caching**: Intelligent data loading with automatic cache management
+- **URL State Management**: First-class support for search params as application state
+- **Code-Based or File-Based Routing**: Choose the routing style that fits your workflow
+- **Nested Layouts**: Powerful layout composition with route hierarchies
+- **Data Loaders**: Load data before rendering with built-in async support
+- **Error Handling**: Granular error boundaries at the route level
+- **Path & Search Params**: Type-safe params with validation support
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Type-Safe Navigation" icon="shield-check">
+    Navigate with confidence using auto-complete and compile-time checks for all routes, params, and search parameters.
+  </Card>
+  
+  <Card title="Smart Data Loading" icon="bolt">
+    Load data before rendering with loaders, built-in caching, and automatic invalidation strategies.
+  </Card>
+  
+  <Card title="Search Params as State" icon="magnifying-glass">
+    Use URL search parameters as a single source of truth for application state with validation.
+  </Card>
+  
+  <Card title="Nested Routes & Layouts" icon="layer-group">
+    Build complex UI hierarchies with nested routes that share layouts and data.
+  </Card>
+</CardGroup>
+
+## How It Works
+
+TanStack Router is built around a few core concepts:
+
+1. **Routes** - Define your application structure using route definitions
+2. **Router** - Create a router instance that manages navigation and state
+3. **RouterProvider** - Provide the router to your React tree
+4. **Navigation** - Use `Link` components and hooks for type-safe navigation
+5. **Data Loading** - Define loaders to fetch data before rendering
+
+<Note>
+  TanStack Router works seamlessly with popular data fetching libraries like TanStack Query, SWR, and Apollo Client.
+</Note>
+
+## Two Routing Approaches
+
+TanStack Router supports both routing paradigms:
+
+### Code-Based Routing
+
+Define routes programmatically with full control and type inference:
+
+```tsx
+import { createRoute, createRouter } from '@tanstack/react-router'
+
+const rootRoute = createRootRoute({
+  component: RootLayout,
+})
+
+const indexRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/',
+  component: Home,
+})
+
+const router = createRouter({
+  routeTree: rootRoute.addChildren([indexRoute]),
+})
+```
+
+### File-Based Routing
+
+Organize routes by file structure with automatic route generation:
+
+```tsx
+// src/routes/__root.tsx
+export const Route = createRootRoute({
+  component: RootLayout,
+})
+
+// src/routes/index.tsx
+export const Route = createFileRoute('/')({  
+  component: Home,
+})
+```
+
+## Next Steps
+
+Ready to get started? Choose your path:
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/router/installation">
+    Install TanStack Router and set up your project
+  </Card>
+  
+  <Card title="Quickstart Guide" icon="rocket" href="/router/quickstart">
+    Build your first router in under 5 minutes
+  </Card>
+  
+  <Card title="Core Concepts" icon="book" href="/router/concepts/routing">
+    Dive deep into routing fundamentals
+  </Card>
+  
+  <Card title="API Reference" icon="code" href="/router/api/router">
+    Explore the complete API documentation
+  </Card>
+</CardGroup>
+
+## Community & Support
+
+Join the TanStack community:
+
+- **GitHub**: [tanstack/router](https://github.com/TanStack/router)
+- **Discord**: [TanStack Discord](https://discord.com/invite/WrRKjPJ)
+- **Twitter**: [@tan_stack](https://twitter.com/tan_stack)
+
+<Tip>
+  TanStack Router is part of the TanStack family of libraries, including TanStack Query, TanStack Table, and more!
+</Tip>

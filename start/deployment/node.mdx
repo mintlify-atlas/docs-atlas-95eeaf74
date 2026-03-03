@@ -1,0 +1,504 @@
+---
+title: Deploy to Node.js
+description: Deploy your TanStack Start application to Node.js servers and Docker containers
+---
+
+TanStack Start applications can be deployed to any Node.js server environment, including traditional VPS servers, Docker containers, and container orchestration platforms like Kubernetes.
+
+## Prerequisites
+
+- Node.js 18+ installed on your server
+- A TanStack Start application
+- Basic knowledge of server management
+
+## Configuration
+
+### Install Nitro
+
+TanStack Start uses Nitro as the build adapter for Node.js deployment. Install the nightly version:
+
+```bash
+pnpm add nitro@npm:nitro-nightly@latest -D
+```
+
+Or add to your `package.json`:
+
+```json
+{
+  "devDependencies": {
+    "nitro": "npm:nitro-nightly@latest"
+  }
+}
+```
+
+### Update Vite Config
+
+Add the Nitro plugin to your `vite.config.ts`:
+
+```ts
+import { defineConfig } from 'vite'
+import { tanstackStart } from '@tanstack/react-start/plugin/vite'
+import { nitro } from 'nitro/vite'
+import viteReact from '@vitejs/plugin-react'
+
+export default defineConfig({
+  plugins: [
+    tanstackStart(),
+    nitro(),
+    viteReact(),
+  ],
+})
+```
+
+<Warning>
+  Nitro v3 with Vite Environments API is under active development. Please report any issues you encounter.
+</Warning>
+
+### Build Scripts
+
+Ensure your `package.json` has the correct build and start scripts:
+
+```json
+{
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "start": "node .output/server/index.mjs",
+    "preview": "vite preview"
+  }
+}
+```
+
+## Building for Production
+
+Build your application:
+
+```bash
+pnpm build
+```
+
+This creates a `.output` directory with:
+- `.output/server/` - Server bundle
+- `.output/public/` - Static assets (client-side code, images, etc.)
+
+## Running in Production
+
+### Basic Usage
+
+Start your application:
+
+```bash
+pnpm start
+```
+
+Or directly with Node:
+
+```bash
+node .output/server/index.mjs
+```
+
+### With Environment Variables
+
+```bash
+PORT=3000 NODE_ENV=production node .output/server/index.mjs
+```
+
+### Configuration
+
+Set the port via environment variable:
+
+```bash
+export PORT=8080
+node .output/server/index.mjs
+```
+
+## Performance Optimization
+
+### FastResponse
+
+Get ~5% throughput improvement with srvx's optimized Response:
+
+1. Install srvx:
+
+```bash
+pnpm install srvx
+```
+
+2. Add to your server entry point (`src/server.ts`):
+
+```ts
+import { FastResponse } from 'srvx'
+globalThis.Response = FastResponse
+```
+
+This optimization uses srvx's `_toNodeResponse()` path to avoid Web Response to Node.js conversion overhead.
+
+## Docker Deployment
+
+### Dockerfile
+
+Create a `Dockerfile` for your application:
+
+```dockerfile
+# Build stage
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Install pnpm
+RUN npm install -g pnpm
+
+# Copy package files
+COPY package.json pnpm-lock.yaml ./
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# Copy source code
+COPY . .
+
+# Build application
+RUN pnpm build
+
+# Production stage
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy built application
+COPY --from=builder /app/.output /app/.output
+COPY --from=builder /app/package.json /app/package.json
+
+# Expose port
+EXPOSE 3000
+
+# Set production environment
+ENV NODE_ENV=production
+
+# Start application
+CMD ["node", ".output/server/index.mjs"]
+```
+
+### Docker Compose
+
+Create a `docker-compose.yml` for local testing:
+
+```yaml
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    restart: unless-stopped
+```
+
+### Build and Run
+
+```bash
+# Build image
+docker build -t tanstack-start-app .
+
+# Run container
+docker run -p 3000:3000 -e NODE_ENV=production tanstack-start-app
+
+# Or with docker-compose
+docker-compose up -d
+```
+
+## Process Management
+
+### PM2
+
+PM2 is a production process manager for Node.js applications:
+
+#### Install PM2
+
+```bash
+pnpm add -g pm2
+```
+
+#### Create PM2 Config
+
+Create `ecosystem.config.js`:
+
+```js
+module.exports = {
+  apps: [{
+    name: 'tanstack-start-app',
+    script: '.output/server/index.mjs',
+    instances: 'max',
+    exec_mode: 'cluster',
+    env: {
+      NODE_ENV: 'production',
+      PORT: 3000
+    },
+    error_file: './logs/err.log',
+    out_file: './logs/out.log',
+    log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+    merge_logs: true
+  }]
+}
+```
+
+#### Start with PM2
+
+```bash
+# Start application
+pm2 start ecosystem.config.js
+
+# View status
+pm2 status
+
+# View logs
+pm2 logs
+
+# Restart
+pm2 restart tanstack-start-app
+
+# Stop
+pm2 stop tanstack-start-app
+
+# Monitor
+pm2 monit
+```
+
+#### Auto-Start on Reboot
+
+```bash
+pm2 startup
+pm2 save
+```
+
+### systemd Service
+
+Create a systemd service file `/etc/systemd/system/tanstack-start.service`:
+
+```ini
+[Unit]
+Description=TanStack Start Application
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/var/www/tanstack-start-app
+Environment="NODE_ENV=production"
+Environment="PORT=3000"
+ExecStart=/usr/bin/node .output/server/index.mjs
+Restart=on-failure
+RestartSec=10
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=tanstack-start
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start the service:
+
+```bash
+sudo systemctl enable tanstack-start
+sudo systemctl start tanstack-start
+sudo systemctl status tanstack-start
+```
+
+## Reverse Proxy
+
+### Nginx
+
+Create an Nginx configuration:
+
+```nginx
+server {
+    listen 80;
+    server_name example.com;
+
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+```
+
+### Apache
+
+Enable required modules:
+
+```bash
+sudo a2enmod proxy
+sudo a2enmod proxy_http
+sudo a2enmod headers
+```
+
+Create Apache configuration:
+
+```apache
+<VirtualHost *:80>
+    ServerName example.com
+    
+    ProxyPreserveHost On
+    ProxyPass / http://localhost:3000/
+    ProxyPassReverse / http://localhost:3000/
+    
+    <Proxy *>
+        Order deny,allow
+        Allow from all
+    </Proxy>
+</VirtualHost>
+```
+
+## SSL/TLS Configuration
+
+### Let's Encrypt with Certbot
+
+Install Certbot:
+
+```bash
+sudo apt-get install certbot python3-certbot-nginx
+```
+
+Obtain certificate:
+
+```bash
+sudo certbot --nginx -d example.com -d www.example.com
+```
+
+Certbot automatically configures Nginx with SSL.
+
+## Environment Variables
+
+### .env File
+
+Create a `.env` file (don't commit to version control):
+
+```bash
+PORT=3000
+NODE_ENV=production
+DATABASE_URL=postgresql://user:password@localhost:5432/db
+API_KEY=your-api-key
+```
+
+### Load Environment Variables
+
+Use dotenv in development:
+
+```bash
+pnpm add dotenv
+```
+
+In production, set variables directly:
+
+```bash
+export DATABASE_URL=postgresql://...
+export API_KEY=your-api-key
+```
+
+Or use PM2's environment configuration (see PM2 section above).
+
+## Monitoring and Logging
+
+### Application Logs
+
+Log to files:
+
+```ts
+import fs from 'fs'
+import { join } from 'path'
+
+const logFile = join(process.cwd(), 'logs', 'app.log')
+
+function log(message: string) {
+  const timestamp = new Date().toISOString()
+  fs.appendFileSync(logFile, `[${timestamp}] ${message}\n`)
+}
+```
+
+### Health Checks
+
+Add a health check endpoint:
+
+```ts
+// app/routes/api/health.ts
+export async function GET() {
+  return new Response(JSON.stringify({ status: 'ok' }), {
+    headers: { 'Content-Type': 'application/json' },
+  })
+}
+```
+
+## Scaling
+
+### Horizontal Scaling
+
+Run multiple instances behind a load balancer:
+
+1. Deploy multiple server instances
+2. Configure load balancer (Nginx, HAProxy, AWS ALB, etc.)
+3. Use shared session storage (Redis)
+
+### Cluster Mode
+
+Use Node.js cluster module or PM2 cluster mode (shown above) to utilize all CPU cores.
+
+## Security Best Practices
+
+1. **Use environment variables** for sensitive data
+2. **Keep Node.js updated** to latest LTS version
+3. **Run as non-root user** (use `www-data` or create dedicated user)
+4. **Use HTTPS** with valid SSL certificates
+5. **Set security headers** via reverse proxy
+6. **Rate limiting** to prevent abuse
+7. **Regular security updates** for dependencies
+
+## Resources
+
+- [Node.js Documentation](https://nodejs.org/docs/)
+- [Nitro Documentation](https://v3.nitro.build/)
+- [PM2 Documentation](https://pm2.keymetrics.io/docs/)
+- [Docker Documentation](https://docs.docker.com/)
+
+## Troubleshooting
+
+### Port Already in Use
+
+```bash
+# Find process using port 3000
+lsof -i :3000
+
+# Kill process
+kill -9 <PID>
+```
+
+### Memory Issues
+
+Increase Node.js memory limit:
+
+```bash
+NODE_OPTIONS="--max-old-space-size=4096" node .output/server/index.mjs
+```
+
+### Build Errors
+
+- Ensure all dependencies are installed: `pnpm install`
+- Clear build cache: `rm -rf .output`
+- Verify Nitro configuration in `vite.config.ts`
+
+### Runtime Errors
+
+- Check application logs
+- Verify environment variables are set
+- Test locally: `pnpm build && pnpm start`
+- Check file permissions on server

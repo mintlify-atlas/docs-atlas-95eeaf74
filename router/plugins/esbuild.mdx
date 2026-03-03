@@ -1,0 +1,353 @@
+---
+title: ESBuild Plugin
+---
+
+# ESBuild Plugin
+
+The TanStack Router ESBuild plugin provides integration with ESBuild, enabling route generation and code splitting for your router application.
+
+## Installation
+
+```bash
+npm install @tanstack/router-plugin
+```
+
+## Basic Usage
+
+Add the plugin to your ESBuild configuration:
+
+```js
+import * as esbuild from 'esbuild'
+import TanStackRouterEsbuild from '@tanstack/router-plugin/esbuild'
+
+await esbuild.build({
+  entryPoints: ['src/index.tsx'],
+  bundle: true,
+  outfile: 'dist/bundle.js',
+  plugins: [TanStackRouterEsbuild()],
+})
+```
+
+## Configuration
+
+The plugin accepts the same configuration options as other TanStack Router plugins:
+
+```js
+import * as esbuild from 'esbuild'
+import TanStackRouterEsbuild from '@tanstack/router-plugin/esbuild'
+
+await esbuild.build({
+  entryPoints: ['src/index.tsx'],
+  bundle: true,
+  outfile: 'dist/bundle.js',
+  plugins: [
+    TanStackRouterEsbuild({
+      // Route generation options
+      routesDirectory: './src/routes',
+      generatedRouteTree: './src/routeTree.gen.ts',
+      
+      // Code splitting options
+      codeSplittingOptions: {
+        defaultBehavior: [
+          ['component'],
+          ['pendingComponent'],
+          ['errorComponent'],
+          ['notFoundComponent']
+        ],
+        addHmr: true
+      },
+      
+      // TypeScript options
+      disableTypes: false,
+      quoteStyle: 'single',
+      semicolons: false,
+    }),
+  ],
+})
+```
+
+## Configuration Options
+
+### Route Generation
+
+#### `routesDirectory`
+- **Type:** `string`
+- **Default:** `'./src/routes'`
+- The directory where your route files are located.
+
+#### `generatedRouteTree`
+- **Type:** `string`
+- **Default:** `'./src/routeTree.gen.ts'`
+- The file where the generated route tree will be written.
+
+#### `routeFilePrefix`
+- **Type:** `string`
+- **Optional**
+- A prefix to require for all route files.
+
+#### `routeFileIgnorePrefix`
+- **Type:** `string`
+- **Default:** `'-'`
+- Files starting with this prefix will be ignored during route generation.
+
+### Code Splitting
+
+#### `codeSplittingOptions`
+- **Type:** `CodeSplittingOptions`
+- **Optional**
+- Controls how routes are code-split.
+
+```js
+{
+  codeSplittingOptions: {
+    // Customize splitting per route
+    splitBehavior: ({ routeId }) => {
+      if (routeId.startsWith('/admin')) {
+        return [['component'], ['loader'], ['errorComponent']]
+      }
+    },
+    
+    // Default behavior for all routes
+    defaultBehavior: [
+      ['component'],
+      ['pendingComponent'],
+      ['errorComponent', 'notFoundComponent']
+    ],
+    
+    // Enable HMR support
+    addHmr: true
+  }
+}
+```
+
+### TypeScript Options
+
+#### `disableTypes`
+- **Type:** `boolean`
+- **Default:** `false`
+- Disable TypeScript type generation.
+
+#### `quoteStyle`
+- **Type:** `'single' | 'double'`
+- **Default:** `'single'`
+- Quote style for generated code.
+
+#### `semicolons`
+- **Type:** `boolean`
+- **Default:** `false`
+- Whether to include semicolons in generated code.
+
+## Separate Plugins
+
+For more granular control, use individual plugins:
+
+### Route Generator Only
+
+```js
+import { TanStackRouterGeneratorEsbuild } from '@tanstack/router-plugin/esbuild'
+
+await esbuild.build({
+  plugins: [TanStackRouterGeneratorEsbuild()],
+})
+```
+
+### Code Splitter Only
+
+```js
+import { TanStackRouterCodeSplitterEsbuild } from '@tanstack/router-plugin/esbuild'
+
+await esbuild.build({
+  plugins: [TanStackRouterCodeSplitterEsbuild()],
+})
+```
+
+## How It Works
+
+The ESBuild plugin is built using [unplugin](https://github.com/unjs/unplugin), providing a unified plugin interface. The plugin:
+
+1. Scans your routes directory during the build
+2. Generates a typed route tree file
+3. Transforms route imports for code splitting
+4. Handles route updates during watch mode
+
+## Examples
+
+### Basic Build Script
+
+```js
+import * as esbuild from 'esbuild'
+import TanStackRouterEsbuild from '@tanstack/router-plugin/esbuild'
+
+await esbuild.build({
+  entryPoints: ['src/index.tsx'],
+  bundle: true,
+  outfile: 'dist/bundle.js',
+  format: 'esm',
+  platform: 'browser',
+  plugins: [
+    TanStackRouterEsbuild({
+      routesDirectory: './src/routes',
+      generatedRouteTree: './src/routeTree.gen.ts',
+    }),
+  ],
+})
+```
+
+### Watch Mode
+
+```js
+import * as esbuild from 'esbuild'
+import TanStackRouterEsbuild from '@tanstack/router-plugin/esbuild'
+
+const ctx = await esbuild.context({
+  entryPoints: ['src/index.tsx'],
+  bundle: true,
+  outfile: 'dist/bundle.js',
+  plugins: [
+    TanStackRouterEsbuild({
+      routesDirectory: './src/routes',
+    }),
+  ],
+})
+
+await ctx.watch()
+console.log('Watching for changes...')
+```
+
+### Production Build
+
+```js
+import * as esbuild from 'esbuild'
+import TanStackRouterEsbuild from '@tanstack/router-plugin/esbuild'
+
+await esbuild.build({
+  entryPoints: ['src/index.tsx'],
+  bundle: true,
+  outdir: 'dist',
+  splitting: true,
+  format: 'esm',
+  minify: true,
+  sourcemap: true,
+  plugins: [
+    TanStackRouterEsbuild({
+      routesDirectory: './src/routes',
+      codeSplittingOptions: {
+        defaultBehavior: [
+          ['component'],
+          ['loader'],
+          ['errorComponent']
+        ],
+      },
+    }),
+  ],
+})
+```
+
+### TypeScript Configuration
+
+```js
+import * as esbuild from 'esbuild'
+import TanStackRouterEsbuild from '@tanstack/router-plugin/esbuild'
+
+await esbuild.build({
+  entryPoints: ['src/index.tsx'],
+  bundle: true,
+  outfile: 'dist/bundle.js',
+  loader: {
+    '.tsx': 'tsx',
+    '.ts': 'ts',
+  },
+  plugins: [
+    TanStackRouterEsbuild({
+      routesDirectory: './src/routes',
+      quoteStyle: 'single',
+      semicolons: false,
+    }),
+  ],
+})
+```
+
+### Build Script with npm
+
+Create a build script in your `package.json`:
+
+```json
+{
+  "scripts": {
+    "build": "node build.js",
+    "dev": "node build.js --watch"
+  }
+}
+```
+
+Then create `build.js`:
+
+```js
+import * as esbuild from 'esbuild'
+import TanStackRouterEsbuild from '@tanstack/router-plugin/esbuild'
+
+const isWatch = process.argv.includes('--watch')
+
+const config = {
+  entryPoints: ['src/index.tsx'],
+  bundle: true,
+  outfile: 'dist/bundle.js',
+  plugins: [
+    TanStackRouterEsbuild({
+      routesDirectory: './src/routes',
+    }),
+  ],
+}
+
+if (isWatch) {
+  const ctx = await esbuild.context(config)
+  await ctx.watch()
+  console.log('Watching...')
+} else {
+  await esbuild.build(config)
+}
+```
+
+## TypeScript Configuration
+
+Ensure your `tsconfig.json` includes the generated route tree:
+
+```json
+{
+  "compilerOptions": {
+    "moduleResolution": "bundler",
+    "module": "ESNext",
+    "target": "ESNext"
+  },
+  "include": [
+    "src/**/*",
+    "src/routeTree.gen.ts"
+  ]
+}
+```
+
+## Troubleshooting
+
+### Routes Not Generated
+
+Ensure your build script runs the plugin before bundling your application. The plugin needs to generate the route tree before ESBuild processes your entry point.
+
+### Watch Mode Not Working
+
+When using ESBuild's watch mode or context API, the plugin will automatically regenerate routes when files change. Make sure you're using `esbuild.context()` instead of `esbuild.build()` for watch mode.
+
+### TypeScript Errors
+
+If you see TypeScript errors about the route tree:
+
+1. Make sure the generated route tree file exists
+2. Check that it's included in your `tsconfig.json`
+3. Run your build once to generate the initial route tree
+
+### Performance
+
+ESBuild is extremely fast, but if you notice slow builds:
+
+1. Check your `routesDirectory` isn't too broad
+2. Use `routeFileIgnorePattern` to exclude unnecessary files
+3. Consider disabling type generation in production builds with `disableTypes: true`

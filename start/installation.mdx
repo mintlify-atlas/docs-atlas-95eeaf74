@@ -1,0 +1,275 @@
+---
+title: Installation
+description: Learn how to install and set up TanStack Start with Vite
+---
+
+# Installation
+
+TanStack Start is built on top of Vite, providing a fast and modern development experience. This guide will walk you through setting up a new TanStack Start project.
+
+## Requirements
+
+Before you begin, make sure you have:
+
+- **Node.js 22.12.0 or later** - Start requires Node.js version 22.12.0+
+- **npm, pnpm, yarn, or bun** - Any package manager will work
+
+## Creating a New Project
+
+The fastest way to get started is to use the TanStack Start CLI:
+
+```bash
+npx create-tanstack-start@latest my-app
+```
+
+This will scaffold a new TanStack Start project with all the necessary dependencies and configuration.
+
+Alternatively, you can use your preferred package manager:
+
+```bash
+# Using pnpm
+pnpm create tanstack-start my-app
+
+# Using yarn
+yarn create tanstack-start my-app
+
+# Using bun
+bun create tanstack-start my-app
+```
+
+## Manual Installation
+
+If you prefer to set up a project manually or add Start to an existing project, follow these steps:
+
+### 1. Install Dependencies
+
+Install the required packages:
+
+```bash
+npm install @tanstack/react-start @tanstack/react-router react react-dom
+```
+
+And the development dependencies:
+
+```bash
+npm install -D @vitejs/plugin-react vite typescript @types/react @types/react-dom @types/node
+```
+
+### 2. Configure Vite
+
+Create a `vite.config.ts` file in your project root:
+
+```tsx
+import { tanstackStart } from '@tanstack/react-start/plugin/vite'
+import { defineConfig } from 'vite'
+import viteReact from '@vitejs/plugin-react'
+
+export default defineConfig({
+  plugins: [
+    tanstackStart(),
+    viteReact(),
+  ],
+})
+```
+
+The `tanstackStart` plugin handles:
+- Route generation from your file structure
+- Code splitting between client and server
+- Server entry point generation
+- TypeScript type generation
+
+### 3. Configure TypeScript
+
+Create or update your `tsconfig.json`:
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["src"],
+  "references": [{ "path": "./tsconfig.node.json" }]
+}
+```
+
+And a `tsconfig.node.json` for Node.js/Vite config files:
+
+```json
+{
+  "compilerOptions": {
+    "composite": true,
+    "skipLibCheck": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowSyntheticDefaultImports": true
+  },
+  "include": ["vite.config.ts"]
+}
+```
+
+### 4. Update package.json
+
+Add the required scripts to your `package.json`:
+
+```json
+{
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "node .output/server/index.mjs"
+  }
+}
+```
+
+Note the `"type": "module"` field—TanStack Start uses ES modules.
+
+## Project Structure
+
+A typical TanStack Start project has the following structure:
+
+```
+my-app/
+├── src/
+│   ├── routes/          # Your route files
+│   │   ├── __root.tsx   # Root route
+│   │   └── index.tsx    # Home page
+│   ├── router.tsx       # Router configuration
+│   └── routeTree.gen.ts # Generated route tree (auto-generated)
+├── vite.config.ts       # Vite configuration
+├── tsconfig.json        # TypeScript configuration
+└── package.json         # Project dependencies
+```
+
+### The `src/routes` Directory
+
+This is where you define your routes using file-based routing:
+
+- `__root.tsx` - The root layout for your entire app
+- `index.tsx` - The home page (`/`)
+- `about.tsx` - An about page (`/about`)
+- `posts/$postId.tsx` - A dynamic route (`/posts/:postId`)
+
+The TanStack Start Vite plugin automatically generates the route tree from these files.
+
+## Configuration Options
+
+The `tanstackStart` plugin accepts several options:
+
+```tsx
+import { tanstackStart } from '@tanstack/react-start/plugin/vite'
+
+tanstackStart({
+  // The directory containing your routes
+  srcDirectory: 'src',
+  
+  // Customize the generated route tree file location
+  generatedRouteTree: 'src/routeTree.gen.ts',
+  
+  // Enable/disable auto route generation
+  autoCodeSplitting: true,
+})
+```
+
+## Additional Integrations
+
+TanStack Start works great with other tools and libraries:
+
+### TanStack Router Devtools
+
+```bash
+npm install -D @tanstack/react-router-devtools
+```
+
+```tsx
+import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
+
+// Add to your root route component
+<TanStackRouterDevtools />
+```
+
+### Tailwind CSS
+
+```bash
+npm install -D tailwindcss @tailwindcss/vite
+```
+
+```tsx
+// vite.config.ts
+import tailwindcss from '@tailwindcss/vite'
+
+export default defineConfig({
+  plugins: [
+    tailwindcss(),
+    tanstackStart(),
+    viteReact(),
+  ],
+})
+```
+
+### TanStack Query
+
+```bash
+npm install @tanstack/react-query
+```
+
+TanStack Query works seamlessly with Start for advanced data fetching, caching, and synchronization.
+
+## Deployment
+
+TanStack Start can be deployed to various platforms:
+
+### Node.js Servers
+
+Build your app and run the server:
+
+```bash
+npm run build
+npm run start
+```
+
+### Vercel, Netlify, or Cloudflare
+
+Most platforms support TanStack Start out of the box. Check the deployment guides for platform-specific instructions.
+
+### Using Nitro
+
+For more advanced deployment options, you can use Nitro:
+
+```bash
+npm install -D nitro
+```
+
+```tsx
+// vite.config.ts
+import { nitro } from 'nitro/vite'
+
+export default defineConfig({
+  plugins: [
+    tanstackStart(),
+    viteReact(),
+    nitro(),
+  ],
+})
+```
+
+Nitro provides adapters for many platforms including AWS, Azure, Cloudflare Workers, and more.
+
+## Next Steps
+
+Now that you have TanStack Start installed, head over to the [Quickstart Guide](./quickstart) to build your first full-stack application.

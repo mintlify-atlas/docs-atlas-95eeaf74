@@ -1,0 +1,421 @@
+---
+title: Quickstart
+description: Build your first full-stack app with TanStack Start in minutes
+---
+
+# Quickstart
+
+This guide will walk you through building a simple counter app with TanStack Start. You'll learn how to create routes, use server functions, and build a full-stack application with type-safe client-server communication.
+
+## Prerequisites
+
+Make sure you've completed the [Installation](./installation) guide and have a TanStack Start project set up.
+
+## Creating Your First Route
+
+Let's start by creating the root route and a home page.
+
+### 1. Create the Root Route
+
+The root route (`__root.tsx`) is the layout for your entire application. It defines the HTML structure and includes essential components like `HeadContent` and `Scripts`.
+
+Create `src/routes/__root.tsx`:
+
+```tsx
+import * as React from 'react'
+import {
+  HeadContent,
+  Outlet,
+  Scripts,
+  createRootRoute,
+} from '@tanstack/react-router'
+import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
+
+export const Route = createRootRoute({
+  head: () => ({
+    meta: [
+      {
+        charSet: 'utf-8',
+      },
+      {
+        name: 'viewport',
+        content: 'width=device-width, initial-scale=1',
+      },
+      {
+        title: 'TanStack Start App',
+      },
+    ],
+  }),
+  component: RootComponent,
+})
+
+function RootComponent() {
+  return (
+    <RootDocument>
+      <Outlet />
+      <TanStackRouterDevtools />
+    </RootDocument>
+  )
+}
+
+function RootDocument({ children }: { children: React.ReactNode }) {
+  return (
+    <html>
+      <head>
+        <HeadContent />
+      </head>
+      <body>
+        {children}
+        <Scripts />
+      </body>
+    </html>
+  )
+}
+```
+
+**Key components:**
+
+- `HeadContent` - Renders the `<head>` content defined in the `head()` function
+- `Outlet` - Renders child routes
+- `Scripts` - Includes the necessary client-side JavaScript
+- `TanStackRouterDevtools` - Development tools for debugging (only in development)
+
+### 2. Create the Router Configuration
+
+Create `src/router.tsx` to configure your router:
+
+```tsx
+import { createRouter } from '@tanstack/react-router'
+import { routeTree } from './routeTree.gen'
+
+export function getRouter() {
+  const router = createRouter({
+    routeTree,
+    scrollRestoration: true,
+  })
+
+  return router
+}
+
+declare module '@tanstack/react-router' {
+  interface Register {
+    router: ReturnType<typeof getRouter>
+  }
+}
+```
+
+The `Register` interface declaration enables full TypeScript support for your routes throughout your application.
+
+## Building a Counter with Server Functions
+
+Now let's build a counter that persists its value on the server. This demonstrates how to use server functions for type-safe client-server communication.
+
+### 3. Create the Home Page
+
+Create `src/routes/index.tsx`:
+
+```tsx
+import * as fs from 'node:fs'
+import { useRouter, createFileRoute } from '@tanstack/react-router'
+import { createServerFn } from '@tanstack/react-start'
+
+const filePath = 'count.txt'
+
+async function readCount() {
+  return parseInt(
+    await fs.promises.readFile(filePath, 'utf-8').catch(() => '0'),
+  )
+}
+
+const getCount = createServerFn({ method: 'GET' }).handler(() => {
+  return readCount()
+})
+
+const updateCount = createServerFn({ method: 'POST' })
+  .inputValidator((addBy: number) => addBy)
+  .handler(async ({ data }) => {
+    const count = await readCount()
+    await fs.promises.writeFile(filePath, `${count + data}`)
+  })
+
+export const Route = createFileRoute('/')({ 
+  component: Home,
+  loader: async () => await getCount(),
+})
+
+function Home() {
+  const router = useRouter()
+  const state = Route.useLoaderData()
+
+  return (
+    <div style={{ padding: '20px' }}>
+      <h1>Counter: {state}</h1>
+      <button
+        onClick={() => {
+          updateCount({ data: 1 }).then(() => {
+            router.invalidate()
+          })
+        }}
+      >
+        Add 1
+      </button>
+    </div>
+  )
+}
+```
+
+**What's happening here:**
+
+1. **Server Functions**: `getCount` and `updateCount` are server functions that run exclusively on the server
+2. **File System Access**: We're using Node.js `fs` module to read/write a file—this code never runs on the client
+3. **Input Validation**: `inputValidator` ensures type-safety for the data sent to the server
+4. **Loader**: The `loader` runs on the server during SSR and fetches the initial count
+5. **Client Interaction**: Clicking the button calls the server function and invalidates the router to refetch data
+
+### 4. Start the Development Server
+
+```bash
+npm run dev
+```
+
+Visit `http://localhost:3000` and you should see your counter app. Click the button and watch the count increase—the value persists even when you refresh the page because it's stored on the server.
+
+## Adding Navigation and Multiple Pages
+
+Let's add another page to demonstrate routing.
+
+### 5. Create an About Page
+
+Create `src/routes/about.tsx`:
+
+```tsx
+import { createFileRoute } from '@tanstack/react-router'
+
+export const Route = createFileRoute('/about')({
+  component: About,
+})
+
+function About() {
+  return (
+    <div style={{ padding: '20px' }}>
+      <h1>About</h1>
+      <p>This is a TanStack Start application.</p>
+    </div>
+  )
+}
+```
+
+### 6. Add Navigation to Root Route
+
+Update `src/routes/__root.tsx` to add a navigation menu:
+
+```tsx
+import { Link } from '@tanstack/react-router'
+
+function RootComponent() {
+  return (
+    <RootDocument>
+      <nav style={{ padding: '10px', borderBottom: '1px solid #ccc' }}>
+        <Link to="/" style={{ marginRight: '10px' }}>
+          Home
+        </Link>
+        <Link to="/about">
+          About
+        </Link>
+      </nav>
+      <Outlet />
+      <TanStackRouterDevtools />
+    </RootDocument>
+  )
+}
+```
+
+The `Link` component provides type-safe navigation—TypeScript will error if you try to link to a route that doesn't exist.
+
+## Creating API Routes
+
+API routes let you create REST endpoints that can be called from anywhere, not just your React components.
+
+### 7. Create an API Route
+
+Create `src/routes/api/hello.ts`:
+
+```tsx
+import { createFileRoute } from '@tanstack/react-router'
+
+export const Route = createFileRoute('/api/hello')({
+  server: {
+    handlers: {
+      GET: async ({ request }) => {
+        return Response.json({
+          message: 'Hello from TanStack Start!',
+          timestamp: new Date().toISOString(),
+        })
+      },
+    },
+  },
+})
+```
+
+You can now access this API at `http://localhost:3000/api/hello`.
+
+### 8. Call the API from Your Component
+
+Update `src/routes/about.tsx` to fetch from the API:
+
+```tsx
+import { createFileRoute } from '@tanstack/react-router'
+
+export const Route = createFileRoute('/about')({
+  component: About,
+  loader: async () => {
+    const response = await fetch('/api/hello')
+    return await response.json()
+  },
+})
+
+function About() {
+  const data = Route.useLoaderData()
+
+  return (
+    <div style={{ padding: '20px' }}>
+      <h1>About</h1>
+      <p>This is a TanStack Start application.</p>
+      <pre>{JSON.stringify(data, null, 2)}</pre>
+    </div>
+  )
+}
+```
+
+## Working with Dynamic Routes
+
+Dynamic routes let you create pages with variable URL segments.
+
+### 9. Create a Dynamic Route
+
+Create `src/routes/posts/$postId.tsx`:
+
+```tsx
+import { createFileRoute } from '@tanstack/react-router'
+import { createServerFn } from '@tanstack/react-start'
+
+const fetchPost = createServerFn({ method: 'GET' })
+  .inputValidator((postId: string) => postId)
+  .handler(async ({ data: postId }) => {
+    // Simulate fetching a post
+    return {
+      id: postId,
+      title: `Post ${postId}`,
+      content: `This is the content for post ${postId}`,
+    }
+  })
+
+export const Route = createFileRoute('/posts/$postId')({
+  loader: async ({ params }) => await fetchPost({ data: params.postId }),
+  component: Post,
+})
+
+function Post() {
+  const post = Route.useLoaderData()
+
+  return (
+    <div style={{ padding: '20px' }}>
+      <h1>{post.title}</h1>
+      <p>{post.content}</p>
+    </div>
+  )
+}
+```
+
+Create `src/routes/posts/index.tsx` for a list of posts:
+
+```tsx
+import { Link, createFileRoute } from '@tanstack/react-router'
+
+export const Route = createFileRoute('/posts/')({
+  component: Posts,
+})
+
+function Posts() {
+  const posts = [1, 2, 3, 4, 5]
+
+  return (
+    <div style={{ padding: '20px' }}>
+      <h1>Posts</h1>
+      <ul>
+        {posts.map((id) => (
+          <li key={id}>
+            <Link to="/posts/$postId" params={{ postId: String(id) }}>
+              Post {id}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+```
+
+Update the root navigation to include Posts:
+
+```tsx
+<Link to="/posts" style={{ marginRight: '10px' }}>
+  Posts
+</Link>
+```
+
+## Building for Production
+
+When you're ready to deploy:
+
+### 10. Build Your App
+
+```bash
+npm run build
+```
+
+This creates optimized bundles in the `.output` directory:
+
+- `.output/client` - Client-side assets (HTML, CSS, JS)
+- `.output/server` - Server-side code
+
+### 11. Run the Production Server
+
+```bash
+npm run start
+```
+
+Your app is now running in production mode.
+
+## Next Steps
+
+You've built a full-stack application with TanStack Start. Here's what you've learned:
+
+- Creating routes with file-based routing
+- Using server functions for type-safe client-server communication
+- Building API routes for REST endpoints
+- Working with dynamic routes and navigation
+- Loading data with loaders and SSR
+
+### Learn More
+
+Explore these topics to build more advanced applications:
+
+- **Data Loading** - Learn about loaders, prefetching, and caching
+- **Authentication** - Implement user authentication and protected routes
+- **Middleware** - Add logging, authentication, and custom logic to routes
+- **Streaming** - Stream data to improve perceived performance
+- **Deployment** - Deploy to Vercel, Netlify, Cloudflare, and more
+
+### Example Projects
+
+Check out the [examples directory](https://github.com/TanStack/router/tree/main/examples/react) in the TanStack Router repository for more complete examples:
+
+- `start-basic` - A basic Start application
+- `start-counter` - The counter example from this guide
+- `start-basic-auth` - Authentication with sessions
+- `start-basic-react-query` - Integration with TanStack Query
+- `start-clerk-basic` - Authentication with Clerk
+- `start-supabase-basic` - Full-stack app with Supabase
+
+Happy building with TanStack Start!

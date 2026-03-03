@@ -1,0 +1,350 @@
+---
+title: Deploy to Netlify
+description: Deploy your TanStack Start application to Netlify
+---
+
+Netlify is a modern web hosting platform that provides instant deployments, automatic HTTPS, and powerful build tools. TanStack Start applications can be deployed to Netlify with the official Vite plugin.
+
+## Prerequisites
+
+- A Netlify account ([sign up here](https://app.netlify.com/signup))
+- Node.js and pnpm (or npm/yarn) installed
+- A TanStack Start application
+
+## Quick Start with CLI
+
+The fastest way to deploy is using the Netlify CLI:
+
+### 1. Install Plugin
+
+Install the official Netlify plugin for TanStack Start:
+
+```bash
+pnpm add --save-dev @netlify/vite-plugin-tanstack-start
+```
+
+### 2. Update Vite Config
+
+Add the Netlify plugin to your `vite.config.ts`:
+
+```ts
+import { defineConfig } from 'vite'
+import { tanstackStart } from '@tanstack/react-start/plugin/vite'
+import netlify from '@netlify/vite-plugin-tanstack-start'
+import viteReact from '@vitejs/plugin-react'
+
+export default defineConfig({
+  plugins: [
+    tanstackStart(),
+    netlify(), // Add anywhere in the array
+    viteReact(),
+  ],
+})
+```
+
+### 3. Deploy
+
+Use the Netlify CLI to deploy:
+
+```bash
+px netlify deploy
+```
+
+If this is a new project, you'll be prompted to:
+- Link or create a new site
+- Configure build settings (automatically detected)
+
+For production deployment:
+
+```bash
+px netlify deploy --prod
+```
+
+## Benefits of the Netlify Plugin
+
+The `@netlify/vite-plugin-tanstack-start` plugin provides:
+
+- **Automatic build configuration** for Netlify deployment
+- **Full platform emulation** in local development
+- **Edge Functions** support out of the box
+- **Image optimization** integration
+- **Environment variables** handling
+
+## Manual Configuration
+
+If you prefer manual configuration, create a `netlify.toml` file:
+
+```toml
+[build]
+  command = "vite build"
+  publish = "dist/client"
+
+[dev]
+  command = "vite dev"
+  port = 3000
+```
+
+<Note>
+  You can also configure these settings directly in the Netlify dashboard under **Site settings > Build & deploy**.
+</Note>
+
+## Environment Variables
+
+### In Netlify Dashboard
+
+1. Go to **Site settings > Environment variables**
+2. Add your variables
+3. Choose the deploy context (production, preview, or branch)
+
+### In netlify.toml
+
+```toml
+[context.production.environment]
+  API_URL = "https://api.production.com"
+  NODE_ENV = "production"
+
+[context.deploy-preview.environment]
+  API_URL = "https://api.staging.com"
+```
+
+### Accessing Variables
+
+Environment variables are available in your server functions:
+
+```ts
+export const getServerData = async () => {
+  const apiUrl = process.env.API_URL
+  return { apiUrl }
+}
+```
+
+## Deployment Methods
+
+Netlify supports multiple deployment workflows:
+
+### Git-Based Deployment
+
+1. Push your code to GitHub, GitLab, or Bitbucket
+2. Connect your repository in the Netlify dashboard
+3. Netlify automatically deploys on every push
+
+**Benefits:**
+- Automatic deployments on git push
+- Deploy previews for pull requests
+- Rollback to any previous deployment
+
+### CLI Deployment
+
+Deploy directly from your terminal:
+
+```bash
+# Deploy to draft URL
+npx netlify deploy
+
+# Deploy to production
+npx netlify deploy --prod
+```
+
+### Continuous Deployment
+
+Netlify automatically builds and deploys when:
+- You push to your main branch (production)
+- You open a pull request (deploy preview)
+- You push to any branch (branch deploys, if enabled)
+
+## Build Configuration
+
+### Build Commands
+
+Configure build commands in `netlify.toml`:
+
+```toml
+[build]
+  command = "pnpm build"
+  publish = "dist/client"
+  
+[build.environment]
+  NODE_VERSION = "20"
+  NPM_FLAGS = "--prefix=/dev/null"
+```
+
+### Post-Processing
+
+Disable Netlify post-processing if needed:
+
+```toml
+[build.processing]
+  skip_processing = false
+[build.processing.css]
+  bundle = true
+  minify = true
+[build.processing.js]
+  bundle = true
+  minify = true
+[build.processing.html]
+  pretty_urls = true
+[build.processing.images]
+  compress = true
+```
+
+## Advanced Features
+
+### Netlify Edge Functions
+
+The Netlify plugin automatically configures your server functions to run on Netlify Edge Functions for optimal performance.
+
+### Headers Configuration
+
+Custom headers in `netlify.toml`:
+
+```toml
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    Content-Security-Policy = "default-src 'self'"
+```
+
+### Redirects and Rewrites
+
+```toml
+[[redirects]]
+  from = "/old-path"
+  to = "/new-path"
+  status = 301
+
+[[redirects]]
+  from = "/api/*"
+  to = "https://api.example.com/:splat"
+  status = 200
+```
+
+### Split Testing
+
+A/B test different branches:
+
+```toml
+[[redirects]]
+  from = "/*"
+  to = "/branch-a/:splat"
+  status = 200
+  conditions = {Cookie=["ab_test=a"]}
+
+[[redirects]]
+  from = "/*"
+  to = "/branch-b/:splat"
+  status = 200
+  conditions = {Cookie=["ab_test=b"]}
+```
+
+## Deploy Previews
+
+Netlify automatically creates deploy previews for pull requests:
+
+1. Open a pull request
+2. Netlify builds and deploys a preview
+3. Preview URL is posted as a comment
+4. Test changes before merging
+
+### Configure Deploy Previews
+
+```toml
+[context.deploy-preview]
+  command = "pnpm build:preview"
+  
+[context.deploy-preview.environment]
+  HUGO_ENV = "staging"
+```
+
+## Custom Domains
+
+### Add a Custom Domain
+
+1. Go to **Site settings > Domain management**
+2. Click **Add custom domain**
+3. Follow DNS configuration instructions
+
+Netlify automatically provisions SSL certificates.
+
+### Domain Configuration in netlify.toml
+
+```toml
+[[redirects]]
+  from = "https://www.example.com/*"
+  to = "https://example.com/:splat"
+  status = 301
+  force = true
+```
+
+## Performance Optimization
+
+### Asset Optimization
+
+Netlify automatically optimizes:
+- Image compression
+- CSS and JavaScript minification
+- Brotli compression
+
+### Caching
+
+Control caching with headers:
+
+```toml
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+```
+
+## Monitoring and Analytics
+
+Netlify provides built-in analytics:
+
+1. Go to **Analytics** in your site dashboard
+2. Enable Netlify Analytics (paid feature)
+3. View traffic, top pages, and more
+
+## Resources
+
+- [Netlify Documentation](https://docs.netlify.com/)
+- [TanStack Start on Netlify Guide](https://docs.netlify.com/build/frameworks/framework-setup-guides/tanstack-start/)
+- [Netlify CLI Documentation](https://docs.netlify.com/cli/get-started/)
+- [Netlify Plugin Repository](https://www.npmjs.com/package/@netlify/vite-plugin-tanstack-start)
+
+## Troubleshooting
+
+### Build Failures
+
+If your build fails:
+- Check the build logs in Netlify dashboard
+- Verify Node.js version: add `NODE_VERSION = "20"` to build environment
+- Ensure all dependencies are in `package.json`
+- Clear cache and retry: **Deploys > Trigger deploy > Clear cache and deploy site**
+
+### Function Errors
+
+For server function issues:
+- Check **Functions** tab in Netlify dashboard for logs
+- Verify environment variables are set correctly
+- Test locally with the Netlify plugin's emulation
+
+### Deploy Preview Issues
+
+If deploy previews aren't working:
+- Check **Site settings > Build & deploy > Deploy contexts**
+- Ensure deploy previews are enabled
+- Verify branch deploy settings
+
+### Domain Issues
+
+For custom domain problems:
+- Verify DNS records are configured correctly
+- Wait for DNS propagation (can take up to 48 hours)
+- Check **Site settings > Domain management** for status
+- Ensure domain is not already used by another Netlify site

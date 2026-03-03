@@ -1,0 +1,344 @@
+---
+title: Router
+---
+
+# Router API
+
+The Router is the core, framework-agnostic engine that powers TanStack Router. It provides navigation, matching, loading, preloading, caching and event APIs used by framework adapters.
+
+## `createRouter`
+
+Creates a new Router instance for React.
+
+```tsx
+import { createRouter } from '@tanstack/react-router'
+
+const router = createRouter({
+  routeTree,
+  context: myContext,
+})
+```
+
+### Parameters
+
+<ParamField path="options" type="RouterOptions" required>
+  Router configuration options.
+
+  <Expandable title="properties">
+    <ParamField path="routeTree" type="AnyRoute" required>
+      The route tree that will be used to configure the router instance.
+    </ParamField>
+
+    <ParamField path="context" type="TRouterContext">
+      The root context that will be provided to all routes in the route tree. Required if the root route was created with `createRootRouteWithContext()`.
+    </ParamField>
+
+    <ParamField path="history" type="RouterHistory">
+      The history object that will be used to manage the browser history. If not provided, a new `createBrowserHistory` instance will be created and used.
+    </ParamField>
+
+    <ParamField path="basepath" type="string" default="/">
+      The basepath for the entire router. This is useful for mounting a router instance at a subpath.
+    </ParamField>
+
+    <ParamField path="defaultPreload" type="false | 'intent' | 'viewport' | 'render'" default="false">
+      If `false`, routes will not be preloaded by default. If `'intent'`, routes will be preloaded when the user hovers over a link or a `touchstart` event is detected. If `'viewport'`, routes will be preloaded when they are within the viewport. If `'render'`, routes will be preloaded on render.
+    </ParamField>
+
+    <ParamField path="defaultPreloadDelay" type="number" default="50">
+      The delay in milliseconds that a route must be hovered over or touched before it is preloaded.
+    </ParamField>
+
+    <ParamField path="defaultPendingMs" type="number" default="1000">
+      The default `pendingMs` a route should use if no `pendingMs` is provided.
+    </ParamField>
+
+    <ParamField path="defaultPendingMinMs" type="number" default="500">
+      The default `pendingMinMs` a route should use if no `pendingMinMs` is provided.
+    </ParamField>
+
+    <ParamField path="defaultStaleTime" type="number" default="0">
+      The default `staleTime` a route should use if no `staleTime` is provided. This is the time in milliseconds that a route will be considered fresh.
+    </ParamField>
+
+    <ParamField path="defaultPreloadStaleTime" type="number" default="30000">
+      The default `preloadStaleTime` a route should use if no `preloadStaleTime` is provided (30 seconds).
+    </ParamField>
+
+    <ParamField path="defaultGcTime" type="number" default="1800000">
+      The default `gcTime` a route should use if no `gcTime` is provided (30 minutes).
+    </ParamField>
+
+    <ParamField path="caseSensitive" type="boolean" default="false">
+      If `true`, all routes will be matched as case-sensitive.
+    </ParamField>
+
+    <ParamField path="trailingSlash" type="'always' | 'never' | 'preserve'" default="'never'">
+      Configures how trailing slashes are treated. `'always'` will add a trailing slash if not present, `'never'` will remove the trailing slash if present, `'preserve'` will not modify the trailing slash.
+    </ParamField>
+
+    <ParamField path="notFoundMode" type="'root' | 'fuzzy'" default="'fuzzy'">
+      Controls how the router handles not-found errors.
+    </ParamField>
+
+    <ParamField path="defaultComponent" type="RouteComponent">
+      The default `component` a route should use if no component is provided (defaults to `Outlet`).
+    </ParamField>
+
+    <ParamField path="defaultErrorComponent" type="ErrorRouteComponent">
+      The default `errorComponent` a route should use if no error component is provided.
+    </ParamField>
+
+    <ParamField path="defaultPendingComponent" type="RouteComponent">
+      The default `pendingComponent` a route should use if no pending component is provided.
+    </ParamField>
+
+    <ParamField path="defaultNotFoundComponent" type="NotFoundRouteComponent">
+      The default `notFoundComponent` a route should use if no notFound component is provided.
+    </ParamField>
+
+    <ParamField path="routeMasks" type="Array<RouteMask>">
+      An array of route masks that will be used to mask routes in the route tree. Route masking is when you display a route at a different path than the one it is configured to match.
+    </ParamField>
+
+    <ParamField path="unmaskOnReload" type="boolean" default="false">
+      If `true`, route masks will, by default, be removed when the page is reloaded.
+    </ParamField>
+
+    <ParamField path="Wrap" type="(props: { children: any }) => React.JSX.Element">
+      A component that will be used to wrap the entire router. Only non-DOM-rendering components like providers should be used.
+    </ParamField>
+
+    <ParamField path="InnerWrap" type="(props: { children: any }) => React.JSX.Element">
+      A component that will be used to wrap the inner contents of the router where you also need access to the router context and hooks.
+    </ParamField>
+
+    <ParamField path="parseSearch" type="SearchParser">
+      A function that will be used to parse search params when parsing the current location.
+    </ParamField>
+
+    <ParamField path="stringifySearch" type="SearchSerializer">
+      A function that will be used to stringify search params when generating links.
+    </ParamField>
+
+    <ParamField path="defaultViewTransition" type="boolean | ViewTransitionOptions">
+      If `true`, route navigations will be called using `document.startViewTransition()`.
+    </ParamField>
+
+    <ParamField path="defaultHashScrollIntoView" type="boolean | ScrollIntoViewOptions">
+      The default `hashScrollIntoView` a route should use if no `hashScrollIntoView` is provided while navigating.
+    </ParamField>
+
+    <ParamField path="scrollRestoration" type="boolean | ((opts: { location: ParsedLocation }) => boolean)" default="false">
+      If `true`, scroll restoration will be enabled.
+    </ParamField>
+
+    <ParamField path="protocolAllowlist" type="Array<string>">
+      An array of URL protocols to allow in links, redirects, and navigation. Absolute URLs with protocols not in this list will be rejected.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### Returns
+
+<ResponseField name="router" type="Router">
+  A Router instance to be provided to `RouterProvider`.
+</ResponseField>
+
+## `Router` Class
+
+The Router class provides methods and properties for managing navigation.
+
+### Properties
+
+<ResponseField name="state" type="RouterState">
+  The current state of the router, including matches, location, and loading status.
+</ResponseField>
+
+<ResponseField name="options" type="RouterOptions">
+  The options used to configure the router.
+</ResponseField>
+
+<ResponseField name="routesById" type="RoutesById">
+  A map of all routes indexed by their ID.
+</ResponseField>
+
+<ResponseField name="history" type="RouterHistory">
+  The history instance used by the router.
+</ResponseField>
+
+### Methods
+
+<ResponseField name="navigate" type="NavigateFn">
+  Imperatively navigate to a new location.
+
+  ```tsx
+  router.navigate({ to: '/about', search: { tab: 'overview' } })
+  ```
+</ResponseField>
+
+<ResponseField name="buildLocation" type="BuildLocationFn">
+  Build a location object from navigation options.
+
+  ```tsx
+  const location = router.buildLocation({ to: '/about' })
+  ```
+</ResponseField>
+
+<ResponseField name="preloadRoute" type="PreloadRouteFn">
+  Preload a route's code and data.
+
+  ```tsx
+  await router.preloadRoute({ to: '/posts/$postId', params: { postId: '123' } })
+  ```
+</ResponseField>
+
+<ResponseField name="matchRoute" type="MatchRouteFn">
+  Match a location and return the route's parameters if it matches.
+
+  ```tsx
+  const params = router.matchRoute({ to: '/posts/$postId' })
+  ```
+</ResponseField>
+
+<ResponseField name="subscribe" type="SubscribeFn">
+  Subscribe to router lifecycle events. Returns an unsubscribe function.
+
+  ```tsx
+  const unsub = router.subscribe('onBeforeNavigate', (event) => {
+    console.log('Navigating to:', event.toLocation.pathname)
+  })
+  ```
+
+  Available events:
+  - `onBeforeNavigate`
+  - `onBeforeLoad`
+  - `onLoad`
+  - `onResolved`
+  - `onBeforeRouteMount`
+  - `onRendered`
+</ResponseField>
+
+<ResponseField name="invalidate" type="InvalidateFn">
+  Invalidate route matches, causing them to reload.
+
+  ```tsx
+  await router.invalidate()
+  ```
+</ResponseField>
+
+## `createRootRoute`
+
+Creates a root Route instance used to build your route tree.
+
+```tsx
+import { createRootRoute } from '@tanstack/react-router'
+
+const rootRoute = createRootRoute({
+  component: RootComponent,
+})
+```
+
+### Parameters
+
+<ParamField path="options" type="RootRouteOptions">
+  Root route configuration options.
+
+  <Expandable title="properties">
+    <ParamField path="component" type="RouteComponent">
+      The component to render for this route.
+    </ParamField>
+
+    <ParamField path="errorComponent" type="ErrorRouteComponent">
+      The component to render when an error occurs.
+    </ParamField>
+
+    <ParamField path="pendingComponent" type="RouteComponent">
+      The component to render while the route is loading.
+    </ParamField>
+
+    <ParamField path="notFoundComponent" type="NotFoundRouteComponent">
+      The component to render when no route matches.
+    </ParamField>
+
+    <ParamField path="beforeLoad" type="BeforeLoadFn">
+      A function that is called before the route is loaded.
+    </ParamField>
+
+    <ParamField path="loader" type="LoaderFn">
+      A function that loads data for the route.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### Returns
+
+<ResponseField name="rootRoute" type="RootRoute">
+  A root route instance.
+</ResponseField>
+
+## `createRootRouteWithContext`
+
+Creates a root route factory that requires a router context type.
+
+```tsx
+import { createRootRouteWithContext } from '@tanstack/react-router'
+
+interface MyRouterContext {
+  user: User
+}
+
+const createRootRouteWithCtx = createRootRouteWithContext<MyRouterContext>()
+
+const rootRoute = createRootRouteWithCtx({
+  component: RootComponent,
+})
+```
+
+### Type Parameters
+
+<ParamField path="TRouterContext" type="object" required>
+  The type of the router context that will be required when creating the router.
+</ParamField>
+
+### Returns
+
+<ResponseField name="createRootRoute" type="Function">
+  A factory function to configure and return a root route that enforces the context type.
+</ResponseField>
+
+## `getRouteApi`
+
+Returns a route-specific API that exposes type-safe hooks pre-bound to a single route ID.
+
+```tsx
+import { getRouteApi } from '@tanstack/react-router'
+
+const Route = getRouteApi('/posts/$postId')
+
+function PostComponent() {
+  const { postId } = Route.useParams()
+  const post = Route.useLoaderData()
+  return <div>{post.title}</div>
+}
+```
+
+### Parameters
+
+<ParamField path="id" type="string" required>
+  Route ID string literal for the target route.
+</ParamField>
+
+### Returns
+
+<ResponseField name="RouteApi" type="RouteApi">
+  A `RouteApi` instance bound to the given route ID with methods:
+  - `useMatch()` - Get the current route match
+  - `useParams()` - Get route params
+  - `useSearch()` - Get search params
+  - `useLoaderData()` - Get loader data
+  - `useLoaderDeps()` - Get loader deps
+  - `useRouteContext()` - Get route context
+  - `useNavigate()` - Get navigate function
+  - `Link` - Pre-bound Link component
+</ResponseField>

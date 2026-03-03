@@ -1,0 +1,266 @@
+---
+title: Server Functions
+description: Create type-safe server functions with createServerFn
+---
+
+## createServerFn
+
+Creates a type-safe server function that can be called from the client with automatic serialization and middleware support.
+
+### Basic Usage
+
+```tsx
+import { createServerFn } from '@tanstack/react-start'
+
+const getUserFn = createServerFn({ method: 'GET' }).handler(async () => {
+  // This code only runs on the server
+  return { name: 'John Doe', email: 'john@example.com' }
+})
+
+// Call from client
+const user = await getUserFn()
+```
+
+### API Reference
+
+<ParamField path="method" type="'GET' | 'POST'" default="'GET'">
+  The HTTP method to use for the server function. GET requests serialize data in the URL query string, while POST requests send data in the request body.
+</ParamField>
+
+### Builder Methods
+
+The `createServerFn()` function returns a builder with chainable methods:
+
+#### `.middleware()`
+
+Adds middleware to the server function for request/response processing.
+
+<ParamField path="middlewares" type="Array<Middleware>" required>
+  Array of middleware functions or middleware instances to apply to this server function.
+</ParamField>
+
+```tsx
+const authMiddleware = createMiddleware().server(async ({ next }) => {
+  // Check authentication
+  return next({ context: { userId: '123' } })
+})
+
+const protectedFn = createServerFn()
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    console.log(context.userId) // '123'
+    return { success: true }
+  })
+```
+
+#### `.inputValidator()`
+
+Validates and transforms input data using a validator (Zod, Valibot, ArkType, or custom function).
+
+<ParamField path="validator" type="Validator" required>
+  A validation schema or function that validates the input data. Supports Standard Schema validators like Zod, Valibot, and ArkType.
+</ParamField>
+
+```tsx
+import { z } from 'zod'
+
+const createUserFn = createServerFn({ method: 'POST' })
+  .inputValidator(z.object({
+    name: z.string(),
+    email: z.string().email(),
+  }))
+  .handler(async ({ data }) => {
+    // data is typed as { name: string, email: string }
+    return { id: '1', ...data }
+  })
+
+// Call with validated data
+await createUserFn({ data: { name: 'Jane', email: 'jane@example.com' } })
+```
+
+#### `.handler()`
+
+Defines the server-side handler function that executes when the server function is called.
+
+<ParamField path="fn" type="ServerFn" required>
+  The server-side function to execute. Receives a context object with `data`, `context`, `method`, and `serverFnMeta`.
+</ParamField>
+
+```tsx
+const myFn = createServerFn().handler(async (ctx) => {
+  // ctx.data - Input data (after validation)
+  // ctx.context - Context from middleware
+  // ctx.method - HTTP method ('GET' | 'POST')
+  // ctx.serverFnMeta - Metadata (id, name, filename)
+  
+  return { result: 'success' }
+})
+```
+
+### Handler Context
+
+The handler function receives a context object with the following properties:
+
+<ParamField path="data" type="any">
+  The validated input data. Type is inferred from the inputValidator if provided.
+</ParamField>
+
+<ParamField path="context" type="object">
+  Context object accumulated from middleware. Contains values added by middleware and global context.
+</ParamField>
+
+<ParamField path="method" type="'GET' | 'POST'">
+  The HTTP method used for this server function.
+</ParamField>
+
+<ParamField path="serverFnMeta" type="ServerFnMeta">
+  Metadata about the server function including:
+  - `id`: Unique function identifier
+  - `name`: Function name
+  - `filename`: Source file path
+</ParamField>
+
+### Calling Server Functions
+
+Server functions can be called with optional configuration:
+
+```tsx
+// No input data
+await myFn()
+
+// With input data
+await myFn({ data: { name: 'John' } })
+
+// With headers
+await myFn({ 
+  data: { name: 'John' },
+  headers: { 'X-Custom': 'value' }
+})
+
+// With custom fetch
+await myFn({ 
+  data: { name: 'John' },
+  fetch: customFetch
+})
+
+// With abort signal
+const controller = new AbortController()
+await myFn({ 
+  data: { name: 'John' },
+  signal: controller.signal
+})
+```
+
+### Call Options
+
+<ParamField path="data" type="any">
+  The input data to send to the server. Required if inputValidator requires input.
+</ParamField>
+
+<ParamField path="headers" type="HeadersInit">
+  Custom headers to include in the request.
+</ParamField>
+
+<ParamField path="signal" type="AbortSignal">
+  AbortSignal for cancelling the request.
+</ParamField>
+
+<ParamField path="fetch" type="typeof fetch">
+  Custom fetch implementation to use instead of global fetch.
+</ParamField>
+
+### Method Selection
+
+#### GET Requests
+
+- Data is serialized in URL query parameters
+- Suitable for idempotent operations
+- Limited payload size
+- Cacheable by browsers and CDNs
+
+```tsx
+const fetchUserFn = createServerFn({ method: 'GET' })
+  .inputValidator((userId: string) => userId)
+  .handler(async ({ data }) => {
+    return await db.user.findById(data)
+  })
+```
+
+#### POST Requests
+
+- Data sent in request body
+- Supports larger payloads
+- Supports FormData for file uploads
+- Not cached by default
+
+```tsx
+const uploadFileFn = createServerFn({ method: 'POST' })
+  .handler(async ({ data }) => {
+    if (data instanceof FormData) {
+      const file = data.get('file')
+      // Handle file upload
+    }
+    return { success: true }
+  })
+```
+
+### Advanced Examples
+
+#### Chaining Multiple Middleware
+
+```tsx
+const complexFn = createServerFn()
+  .middleware([authMiddleware, loggingMiddleware])
+  .inputValidator(mySchema)
+  .handler(async ({ data, context }) => {
+    // Access context from all middleware
+    return { result: data }
+  })
+```
+
+#### Returning Responses
+
+```tsx
+const customResponseFn = createServerFn().handler(async () => {
+  // Return a custom Response object
+  return new Response('Custom content', {
+    headers: { 'Content-Type': 'text/plain' }
+  })
+})
+```
+
+#### Error Handling
+
+```tsx
+const errorFn = createServerFn().handler(async () => {
+  throw new Error('Something went wrong')
+  // Error is automatically serialized and thrown on client
+})
+
+try {
+  await errorFn()
+} catch (error) {
+  console.error(error.message) // 'Something went wrong'
+}
+```
+
+### Type Safety
+
+Server functions are fully type-safe:
+
+- Input types are inferred from validators
+- Context types are inferred from middleware
+- Return types are preserved across the network
+- Serialization is automatically validated
+
+```tsx
+const typedFn = createServerFn({ method: 'POST' })
+  .inputValidator(z.object({ count: z.number() }))
+  .handler(async ({ data }) => {
+    // data is typed as { count: number }
+    return { doubled: data.count * 2 }
+  })
+
+// result is typed as { doubled: number }
+const result = await typedFn({ data: { count: 5 } })
+```

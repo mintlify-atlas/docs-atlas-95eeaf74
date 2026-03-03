@@ -1,0 +1,508 @@
+---
+title: Middleware
+---
+
+# Middleware
+
+Middleware in TanStack Start enables you to compose reusable logic for authentication, logging, validation, and more. Middleware runs on both request-level (for routes) and function-level (for server functions).
+
+## What is Middleware?
+
+Middleware is composable logic that runs before your route handlers or server functions. It can:
+
+- **Authenticate users**: Verify sessions and tokens
+- **Transform data**: Validate and sanitize inputs
+- **Modify context**: Add data available to downstream handlers
+- **Control flow**: Short-circuit execution with responses
+- **Log and monitor**: Track requests and performance
+
+## Types of Middleware
+
+TanStack Start has two types of middleware:
+
+1. **Request Middleware**: Runs for every request to a route
+2. **Function Middleware**: Runs for server function calls
+
+## Creating Middleware
+
+<Steps>
+
+<Step>
+
+### Basic Request Middleware
+
+Create middleware that runs for route requests:
+
+```tsx
+import { createMiddleware } from '@tanstack/react-start'
+
+const loggingMiddleware = createMiddleware().server(async ({ next, request, pathname }) => {
+  console.log(`Incoming request: ${request.method} ${pathname}`)
+  
+  const result = await next()
+  
+  console.log(`Request completed: ${pathname}`)
+  
+  return result
+})
+```
+
+</Step>
+
+<Step>
+
+### Apply to Routes
+
+Apply middleware to specific routes:
+
+```tsx
+import { createFileRoute } from '@tanstack/react-router'
+import { createMiddleware } from '@tanstack/react-start'
+
+const authMiddleware = createMiddleware().server(async ({ next, request }) => {
+  const session = await getSession(request)
+  
+  if (!session) {
+    throw new Response('Unauthorized', { status: 401 })
+  }
+  
+  return next({
+    context: {
+      userId: session.userId,
+      role: session.role
+    }
+  })
+})
+
+export const Route = createFileRoute('/dashboard')(
+  {
+    server: {
+      middleware: [authMiddleware]
+    },
+    component: DashboardComponent
+  }
+)
+
+function DashboardComponent() {
+  return <div>Dashboard</div>
+}
+```
+
+</Step>
+
+<Step>
+
+### Function Middleware
+
+Create middleware for server functions:
+
+```tsx
+import { createMiddleware, createServerFn } from '@tanstack/react-start'
+
+const rateLimitMiddleware = createMiddleware()
+  .server(async ({ next, context }) => {
+    const userId = context.userId
+    const allowed = await checkRateLimit(userId)
+    
+    if (!allowed) {
+      throw new Response('Rate limit exceeded', { status: 429 })
+    }
+    
+    return next()
+  })
+
+const apiCall = createServerFn({ method: 'POST' })
+  .middleware([rateLimitMiddleware])
+  .handler(async ({ data }) => {
+    // This runs only if rate limit check passes
+    return await processApiCall(data)
+  })
+```
+
+</Step>
+
+</Steps>
+
+## Middleware Context
+
+Pass data between middleware and handlers:
+
+```tsx
+import { createMiddleware, createServerFn } from '@tanstack/react-start'
+import { getRequestHeaders } from '@tanstack/react-start/server'
+
+const authMiddleware = createMiddleware().server(async ({ next }) => {
+  const headers = getRequestHeaders()
+  const token = headers.get('authorization')?.replace('Bearer ', '')
+  
+  if (!token) {
+    throw new Response('Unauthorized', { status: 401 })
+  }
+  
+  const user = await verifyToken(token)
+  
+  // Add user to context
+  return next({
+    context: {
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role
+      }
+    }
+  })
+})
+
+const getProfile = createServerFn()
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    // Access user from context
+    const user = context.user
+    
+    return {
+      id: user.id,
+      email: user.email,
+      profile: await db.profiles.findUnique({ where: { userId: user.id } })
+    }
+  })
+```
+
+## Composing Middleware
+
+Chain multiple middleware together:
+
+```tsx
+import { createMiddleware } from '@tanstack/react-start'
+
+// Parent middleware
+const parentMiddleware = createMiddleware().server(async ({ next }) => {
+  console.log('Parent: before')
+  const result = await next()
+  console.log('Parent: after')
+  return result
+})
+
+// Child middleware that includes parent
+const childMiddleware = createMiddleware()
+  .middleware([parentMiddleware])
+  .server(async ({ next }) => {
+    console.log('Child: before')
+    const result = await next()
+    console.log('Child: after')
+    return result
+  })
+
+// Apply composed middleware
+const handler = createServerFn()
+  .middleware([childMiddleware])
+  .handler(async () => {
+    console.log('Handler')
+    return { success: true }
+  })
+
+// Execution order:
+// 1. Parent: before
+// 2. Child: before
+// 3. Handler
+// 4. Child: after
+// 5. Parent: after
+```
+
+## Route Middleware Patterns
+
+### Middleware for API Routes
+
+Apply middleware to server route handlers:
+
+```tsx
+import { createFileRoute } from '@tanstack/react-router'
+import { createMiddleware } from '@tanstack/react-start'
+import { getRequestHeaders } from '@tanstack/react-start/server'
+
+const corsMiddleware = createMiddleware().server(async ({ next }) => {
+  const result = await next()
+  
+  result.response.headers.set('Access-Control-Allow-Origin', '*')
+  result.response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+  
+  return result
+})
+
+const jsonMiddleware = createMiddleware().server(async ({ next, request }) => {
+  const headers = getRequestHeaders()
+  const contentType = headers.get('content-type')
+  
+  if (contentType !== 'application/json') {
+    throw new Response('Content-Type must be application/json', { status: 400 })
+  }
+  
+  return next()
+})
+
+export const Route = createFileRoute('/api/users')(
+  {
+    server: {
+      middleware: [corsMiddleware, jsonMiddleware],
+      handlers: {
+        GET: async ({ request }) => {
+          const users = await db.users.findMany()
+          return Response.json(users)
+        },
+        POST: async ({ request }) => {
+          const data = await request.json()
+          const user = await db.users.create({ data })
+          return Response.json(user, { status: 201 })
+        }
+      }
+    }
+  }
+)
+```
+
+### Global Request Middleware
+
+Apply middleware to all requests:
+
+```tsx
+// src/app.tsx
+import { createStart } from '@tanstack/react-start'
+import { createMiddleware } from '@tanstack/react-start'
+
+const globalLoggingMiddleware = createMiddleware().server(async ({ next, pathname }) => {
+  const start = Date.now()
+  
+  const result = await next()
+  
+  const duration = Date.now() - start
+  console.log(`[${pathname}] ${duration}ms`)
+  
+  return result
+})
+
+export const startInstance = createStart({
+  requestMiddleware: [globalLoggingMiddleware]
+})
+```
+
+## Input Validation Middleware
+
+Validate and transform input data:
+
+```tsx
+import { createMiddleware, createServerFn } from '@tanstack/react-start'
+import { z } from 'zod'
+
+const validationMiddleware = createMiddleware()
+  .inputValidator(z.object({
+    email: z.string().email(),
+    age: z.number().min(18)
+  }))
+  .server(async ({ data, next }) => {
+    // data is validated and typed
+    console.log('Valid data:', data)
+    
+    return next()
+  })
+
+const registerUser = createServerFn({ method: 'POST' })
+  .middleware([validationMiddleware])
+  .handler(async ({ data }) => {
+    // data is already validated by middleware
+    return await db.users.create({ data })
+  })
+```
+
+## Client-Side Middleware
+
+Run middleware on the client before sending requests:
+
+```tsx
+import { createMiddleware, createServerFn } from '@tanstack/react-start'
+
+const clientAuthMiddleware = createMiddleware()
+  .client(async ({ next, sendContext }) => {
+    // Get auth token from client storage
+    const token = localStorage.getItem('authToken')
+    
+    // Send token in context to server
+    return next({
+      sendContext: {
+        token
+      },
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+  })
+  .server(async ({ context, next }) => {
+    // Access token from client context
+    const { token } = context
+    const user = await verifyToken(token)
+    
+    return next({
+      context: { user }
+    })
+  })
+
+const protectedAction = createServerFn({ method: 'POST' })
+  .middleware([clientAuthMiddleware])
+  .handler(async ({ context }) => {
+    // context.user is available from middleware
+    return { userId: context.user.id }
+  })
+```
+
+## Error Handling in Middleware
+
+Handle errors gracefully:
+
+```tsx
+import { createMiddleware } from '@tanstack/react-start'
+
+const errorHandlingMiddleware = createMiddleware().server(async ({ next }) => {
+  try {
+    return await next()
+  } catch (error) {
+    // Log error
+    console.error('Middleware error:', error)
+    
+    // Return error response
+    if (error instanceof Error) {
+      throw new Response(
+        JSON.stringify({ error: error.message }),
+        {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      )
+    }
+    
+    throw error
+  }
+})
+```
+
+## Conditional Middleware
+
+Run middleware based on conditions:
+
+```tsx
+import { createMiddleware } from '@tanstack/react-start'
+
+const conditionalMiddleware = createMiddleware().server(async ({ next, pathname }) => {
+  // Only apply to API routes
+  if (pathname.startsWith('/api')) {
+    console.log('API request:', pathname)
+    
+    const result = await next()
+    
+    // Add API-specific headers
+    result.response.headers.set('X-API-Version', '1.0')
+    
+    return result
+  }
+  
+  // Skip middleware for other routes
+  return next()
+})
+```
+
+## Response Modification
+
+Modify responses in middleware:
+
+```tsx
+import { createMiddleware } from '@tanstack/react-start'
+
+const headerMiddleware = createMiddleware().server(async ({ next }) => {
+  const result = await next()
+  
+  // Add security headers
+  result.response.headers.set('X-Content-Type-Options', 'nosniff')
+  result.response.headers.set('X-Frame-Options', 'DENY')
+  result.response.headers.set('X-XSS-Protection', '1; mode=block')
+  
+  return result
+})
+
+const cacheMiddleware = createMiddleware().server(async ({ next, pathname }) => {
+  const result = await next()
+  
+  // Set cache headers for static content
+  if (pathname.startsWith('/static')) {
+    result.response.headers.set('Cache-Control', 'public, max-age=31536000, immutable')
+  }
+  
+  return result
+})
+```
+
+## Testing Middleware
+
+Test middleware in isolation:
+
+```tsx
+import { describe, it, expect } from 'vitest'
+import { createMiddleware } from '@tanstack/react-start'
+
+describe('authMiddleware', () => {
+  it('should allow authenticated requests', async () => {
+    const middleware = createMiddleware().server(async ({ next, context }) => {
+      if (!context.userId) {
+        throw new Response('Unauthorized', { status: 401 })
+      }
+      return next()
+    })
+    
+    const mockNext = async () => ({ response: new Response('OK') })
+    const mockContext = { userId: '123' }
+    
+    const result = await middleware.options.server({
+      next: mockNext,
+      context: mockContext,
+      request: new Request('http://localhost/test'),
+      pathname: '/test'
+    })
+    
+    expect(result.response.status).toBe(200)
+  })
+  
+  it('should reject unauthenticated requests', async () => {
+    const middleware = createMiddleware().server(async ({ next, context }) => {
+      if (!context.userId) {
+        throw new Response('Unauthorized', { status: 401 })
+      }
+      return next()
+    })
+    
+    const mockNext = async () => ({ response: new Response('OK') })
+    const mockContext = {}
+    
+    await expect(
+      middleware.options.server({
+        next: mockNext,
+        context: mockContext,
+        request: new Request('http://localhost/test'),
+        pathname: '/test'
+      })
+    ).rejects.toThrow()
+  })
+})
+```
+
+## Best Practices
+
+- **Keep middleware focused**: Each middleware should do one thing well
+- **Order matters**: Place authentication before authorization
+- **Use types**: Leverage TypeScript for context typing
+- **Handle errors**: Always implement error handling
+- **Avoid side effects**: Keep middleware pure when possible
+- **Test thoroughly**: Unit test middleware in isolation
+- **Document context**: Clearly document what context each middleware adds
+- **Compose wisely**: Reuse middleware through composition
+
+## Learn More
+
+- [Server Functions](/start/guides/server-functions)
+- [SSR Streaming](/start/guides/ssr-streaming)
+- [Deployment](/start/guides/deployment)

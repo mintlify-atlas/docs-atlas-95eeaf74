@@ -1,0 +1,332 @@
+---
+title: Server Rendering
+description: Understand how TanStack Start renders your application on the server
+---
+
+TanStack Start provides powerful server-side rendering (SSR) capabilities that allow your application to render HTML on the server before sending it to the client. This improves initial page load performance, SEO, and enables progressive enhancement.
+
+## How Server Rendering Works
+
+When a request arrives at your server, TanStack Start follows this flow:
+
+1. **Request Handler**: The `createStartHandler` receives the incoming request
+2. **Router Initialization**: A router instance is created with memory history for the requested URL
+3. **Route Matching**: The router matches the URL path to your route definitions
+4. **Data Loading**: Route loaders execute on the server to fetch data
+5. **Component Rendering**: React components render to HTML string or stream
+6. **Hydration Data**: Serialized state is embedded in the HTML for client hydration
+
+<CodeGroup>
+```tsx app/server.ts
+import { createStartHandler } from '@tanstack/react-start-server'
+import { defaultStreamHandler } from '@tanstack/react-start-server'
+
+export default createStartHandler(defaultStreamHandler)
+```
+
+```tsx app/routes/__root.tsx
+import { createRootRoute } from '@tanstack/react-router'
+import { Outlet, ScrollRestoration } from '@tanstack/react-router'
+
+export const Route = createRootRoute({
+  component: RootComponent,
+})
+
+function RootComponent() {
+  return (
+    <html>
+      <head>
+        <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+      </head>
+      <body>
+        <Outlet />
+        <ScrollRestoration />
+      </body>
+    </html>
+  )
+}
+```
+</CodeGroup>
+
+## Rendering Modes
+
+TanStack Start supports two rendering approaches:
+
+### String Rendering
+
+Renders the entire HTML as a string before sending the response. Best for static pages or when you need the complete HTML immediately.
+
+```tsx
+import { defaultRenderHandler } from '@tanstack/react-start-server'
+import { createStartHandler } from '@tanstack/react-start-server'
+
+export default createStartHandler(defaultRenderHandler)
+```
+
+Internally, this uses `renderRouterToString` from `@tanstack/react-router/ssr/server`:
+
+```tsx
+renderRouterToString({
+  router,
+  responseHeaders,
+  children: <StartServer router={router} />,
+})
+```
+
+### Stream Rendering
+
+Streams HTML to the client as it renders, allowing the browser to start processing content before the entire page is ready. This is the **recommended approach** for better perceived performance.
+
+```tsx
+import { defaultStreamHandler } from '@tanstack/react-start-server'
+import { createStartHandler } from '@tanstack/react-start-server'
+
+export default createStartHandler(defaultStreamHandler)
+```
+
+Internally, this uses `renderRouterToStream`:
+
+```tsx
+renderRouterToStream({
+  request,
+  router,
+  responseHeaders,
+  children: <StartServer router={router} />,
+})
+```
+
+## SSR Configuration
+
+Control SSR behavior per route or globally:
+
+### Per-Route SSR Control
+
+```tsx app/routes/index.tsx
+import { createFileRoute } from '@tanstack/react-router'
+
+export const Route = createFileRoute('/')({{
+  component: Home,
+  ssr: true, // Enable SSR for this route (default)
+}})
+
+function Home() {
+  return <div>Server-rendered content</div>
+}
+```
+
+### Disable SSR for Specific Routes
+
+```tsx app/routes/dashboard.tsx
+export const Route = createFileRoute('/dashboard')({
+  component: Dashboard,
+  ssr: false, // Client-side only
+})
+```
+
+### Global SSR Configuration
+
+Set default SSR behavior for all routes:
+
+```tsx app/start.ts
+import { createStart } from '@tanstack/react-start-client-core'
+
+const start = createStart({
+  defaultSsr: true, // Enable SSR by default
+})
+
+export default start
+```
+
+## The StartServer Component
+
+The `<StartServer>` component wraps your router on the server:
+
+```tsx
+import { StartServer } from '@tanstack/react-start-server'
+
+// Inside the handler
+<StartServer router={router} />
+```
+
+This component:
+- Renders the `<RouterProvider>` with the server router instance
+- Manages SSR-specific context and state
+- Coordinates with the serialization system
+
+## Server-Side Data Loading
+
+Route loaders execute on the server during SSR:
+
+```tsx app/routes/posts.$postId.tsx
+export const Route = createFileRoute('/posts/$postId')({
+  loader: async ({ params }) => {
+    // This runs on the server during SSR
+    const post = await fetchPost(params.postId)
+    return { post }
+  },
+  component: Post,
+})
+
+function Post() {
+  const { post } = Route.useLoaderData()
+  return <article>{post.title}</article>
+}
+```
+
+The loader data is:
+1. Fetched on the server
+2. Serialized and embedded in the HTML
+3. Available immediately on the client without refetching
+
+## Hydration
+
+After the server sends HTML, the client "hydrates" the page:
+
+```tsx app/client.tsx
+import { hydrateStart } from '@tanstack/react-start-client'
+import { StartClient } from '@tanstack/react-start-client'
+import { hydrateRoot } from 'react-dom/client'
+
+async function hydrate() {
+  const router = await hydrateStart()
+  hydrateRoot(document, <StartClient router={router} />)
+}
+
+hydrate()
+```
+
+During hydration:
+1. The client router reads serialized state from the HTML
+2. React attaches event listeners to the server-rendered HTML
+3. The app becomes interactive without re-rendering
+
+## Request Context
+
+Access request information during SSR:
+
+```tsx
+import { getRequest } from '@tanstack/react-start-server'
+
+export const Route = createFileRoute('/api/data')({
+  loader: async () => {
+    const request = getRequest()
+    const userAgent = request.headers.get('user-agent')
+    return { userAgent }
+  },
+})
+```
+
+## Response Headers
+
+Set response headers during SSR:
+
+```tsx
+import { setResponseHeader } from '@tanstack/react-start-server'
+
+export const Route = createFileRoute('/posts')({
+  loader: async () => {
+    setResponseHeader('Cache-Control', 'public, max-age=3600')
+    const posts = await fetchPosts()
+    return { posts }
+  },
+})
+```
+
+## Asset Manifest
+
+TanStack Start automatically generates an asset manifest during build that includes:
+
+- JavaScript module preloads
+- CSS stylesheets
+- Client entry script
+
+The manifest is resolved per request in `createStartHandler`:
+
+```tsx
+// Internal: how Start resolves the manifest
+const manifest = await getStartManifest(matchedRoutes)
+attachRouterServerSsrUtils({ router, manifest })
+```
+
+This ensures only the assets needed for the current route are loaded.
+
+## Error Handling
+
+Handle errors during SSR:
+
+```tsx
+export const Route = createFileRoute('/posts/$postId')({
+  loader: async ({ params }) => {
+    const post = await fetchPost(params.postId)
+    if (!post) {
+      throw notFound() // Built-in not found handler
+    }
+    return { post }
+  },
+  errorComponent: ({ error }) => {
+    return <div>Error loading post: {error.message}</div>
+  },
+})
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use streaming for better performance">
+    Stream rendering (`defaultStreamHandler`) provides better perceived performance by sending content as it renders:
+    
+    ```tsx
+    export default createStartHandler(defaultStreamHandler)
+    ```
+  </Accordion>
+
+  <Accordion title="Optimize loader execution">
+    Keep loaders fast and focused. Use parallel loading when possible:
+    
+    ```tsx
+    loader: async ({ params }) => {
+      const [user, posts] = await Promise.all([
+        fetchUser(params.userId),
+        fetchPosts(params.userId),
+      ])
+      return { user, posts }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Handle environment-specific code">
+    Use conditional logic for server-only code:
+    
+    ```tsx
+    const data = typeof window === 'undefined' 
+      ? await fetchFromDatabase() 
+      : await fetchFromAPI()
+    ```
+  </Accordion>
+
+  <Accordion title="Set appropriate cache headers">
+    Use response headers to control caching:
+    
+    ```tsx
+    setResponseHeader('Cache-Control', 'public, max-age=3600, stale-while-revalidate=86400')
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Related Concepts
+
+<CardGroup cols={2}>
+  <Card title="Streaming" icon="water" href="/start/concepts/streaming">
+    Learn how to stream content progressively
+  </Card>
+  <Card title="Server Functions" icon="function" href="/start/concepts/server-functions">
+    Execute server-side logic from client components
+  </Card>
+  <Card title="Deployment" icon="rocket" href="/start/concepts/deployment">
+    Deploy your SSR application to production
+  </Card>
+  <Card title="SSR Guide" icon="book" href="/start/guides/ssr-streaming">
+    Complete guide to SSR and streaming
+  </Card>
+</CardGroup>

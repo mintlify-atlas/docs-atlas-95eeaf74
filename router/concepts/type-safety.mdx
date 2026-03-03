@@ -1,0 +1,506 @@
+---
+title: Type Safety
+description: Configure end-to-end type safety for routes, params, and data
+---
+
+TanStack Router provides comprehensive type safety across your entire routing layer, from route definitions to navigation and data access.
+
+## Route Type Registration
+
+Register your route tree for global type inference:
+
+```tsx
+import { createRouter } from '@tanstack/react-router'
+import { routeTree } from './routeTree.gen'
+
+const router = createRouter({ routeTree })
+
+// Register router type globally
+declare module '@tanstack/react-router' {
+  interface Register {
+    router: typeof router
+  }
+}
+```
+
+Now all hooks and components have type information.
+
+## File-Based Routes
+
+Generate type-safe routes from your file structure:
+
+```bash
+npx @tanstack/router-cli generate
+```
+
+This creates:
+- Type definitions for all routes
+- Global route type registration
+- Autocomplete for paths and params
+
+### Route File
+
+```tsx
+// routes/posts/$postId.tsx
+import { createFileRoute } from '@tanstack/react-router'
+
+export const Route = createFileRoute('/posts/$postId')({
+  loader: async ({ params }) => {
+    // params.postId is typed as string
+    const post = await fetchPost(params.postId)
+    return { post }
+  },
+})
+
+function PostComponent() {
+  const { post } = Route.useLoaderData()
+  // post is fully typed
+  return <h1>{post.title}</h1>
+}
+```
+
+## Type-Safe Parameters
+
+### Path Parameters
+
+Path params are automatically inferred:
+
+```tsx
+const postRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/posts/$postId',
+  // params.postId is string
+})
+
+function Component() {
+  // Type-safe param access
+  const { postId } = useParams({ from: '/posts/$postId' })
+  //     ^? string
+}
+```
+
+### Parsed Parameters
+
+Transform params with type safety:
+
+```tsx
+const postRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/posts/$postId',
+  params: {
+    parse: (params) => ({
+      postId: Number(params.postId),
+    }),
+    stringify: (params) => ({
+      postId: String(params.postId),
+    }),
+  },
+})
+
+function Component() {
+  const { postId } = useParams({ from: '/posts/$postId' })
+  //     ^? number
+  
+  const next = postId + 1 // Type-safe arithmetic
+}
+```
+
+### Search Parameters
+
+Define search param types with validators:
+
+```tsx
+import { z } from 'zod'
+import { zodValidator } from '@tanstack/zod-adapter'
+
+const searchSchema = z.object({
+  page: z.number().min(1).default(1),
+  filter: z.enum(['all', 'active', 'completed']).default('all'),
+  sort: z.enum(['date', 'title']).optional(),
+})
+
+const postsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/posts',
+  validateSearch: zodValidator(searchSchema),
+})
+
+function Component() {
+  const search = useSearch({ from: '/posts' })
+  //    ^? { page: number; filter: 'all' | 'active' | 'completed'; sort?: 'date' | 'title' }
+}
+```
+
+## Type-Safe Navigation
+
+### Link Component
+
+Links are fully type-checked:
+
+```tsx
+<Link
+  to="/posts/$postId"
+  params={{ postId: 123 }} // Type error if wrong type
+  search={{ page: 1 }}     // Type error if invalid search params
+>
+  View Post
+</Link>
+```
+
+Invalid paths cause compile errors:
+
+```tsx
+// ❌ Type error: "/invalid" is not a valid route
+<Link to="/invalid">Invalid</Link>
+```
+
+### Navigate Hook
+
+Programmatic navigation is type-safe:
+
+```tsx
+function Component() {
+  const navigate = useNavigate()
+  
+  const goToPost = async () => {
+    await navigate({
+      to: '/posts/$postId',
+      params: { postId: 123 }, // Fully typed
+      search: { page: 1 },     // Validated against schema
+    })
+  }
+}
+```
+
+### From Parameter
+
+Specify source route for relative navigation:
+
+```tsx
+function Component() {
+  // Type-safe relative navigation
+  return (
+    <Link from="/posts/$postId" to="../edit">
+      Edit Post
+    </Link>
+  )
+}
+```
+
+## Type-Safe Data Access
+
+### Loader Data
+
+Loader return types are inferred:
+
+```tsx
+const postRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/posts/$postId',
+  loader: async ({ params }) => {
+    const post = await fetchPost(params.postId)
+    const author = await fetchAuthor(post.authorId)
+    return { post, author }
+  },
+})
+
+function Component() {
+  const { post, author } = useLoaderData({ from: '/posts/$postId' })
+  //     ^? { post: Post; author: Author }
+  
+  return <h1>{post.title} by {author.name}</h1>
+}
+```
+
+### Context
+
+Route context is fully typed:
+
+```tsx
+const rootRoute = createRootRouteWithContext<{
+  auth: AuthContext
+}>()({
+  component: () => <Outlet />,
+})
+
+const protectedRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/dashboard',
+  beforeLoad: ({ context }) => {
+    // context.auth is typed
+    if (!context.auth.isAuthenticated) {
+      throw redirect({ to: '/login' })
+    }
+  },
+})
+```
+
+## Strict Mode
+
+### Strict Params
+
+Enable strict parameter typing:
+
+```tsx
+function Component() {
+  // Strict: Only params from this specific route
+  const params = useParams({ from: '/posts/$postId', strict: true })
+  //    ^? { postId: string }
+  
+  // Loose: Union of params from all routes
+  const params = useParams({ strict: false })
+  //    ^? { postId?: string; userId?: string; ... }
+}
+```
+
+### Strict Search
+
+Strictly type search parameters:
+
+```tsx
+const router = createRouter({
+  routeTree,
+  search: {
+    strict: true, // Remove unknown search params
+  },
+})
+```
+
+With strict mode, only params defined in `validateSearch` are allowed.
+
+## Type Inference
+
+### Route by ID
+
+Access route types by ID:
+
+```tsx
+import type { RouteById } from '@tanstack/react-router'
+
+type PostRoute = RouteById<typeof router.routeTree, '/posts/$postId'>
+type PostParams = PostRoute['types']['allParams']
+//   ^? { postId: string }
+```
+
+### Route by Path
+
+Access route types by path:
+
+```tsx
+import type { RouteByPath } from '@tanstack/react-router'
+
+type PostRoute = RouteByPath<typeof router.routeTree, '/posts/$postId'>
+```
+
+### All Params
+
+Get union of all route params:
+
+```tsx
+import type { AllParams } from '@tanstack/react-router'
+
+type Params = AllParams<typeof router.routeTree>
+//   ^? { postId?: string; userId?: string; ... }
+```
+
+## Router Context Type
+
+Define context type for dependency injection:
+
+```tsx
+interface MyRouterContext {
+  auth: {
+    isAuthenticated: boolean
+    userId: string | null
+  }
+  queryClient: QueryClient
+}
+
+const rootRoute = createRootRouteWithContext<MyRouterContext>()({
+  component: () => <Outlet />,
+})
+
+const router = createRouter({
+  routeTree,
+  context: {
+    auth: getAuth(),
+    queryClient: new QueryClient(),
+  },
+})
+```
+
+All routes inherit this context with full typing.
+
+## Type Helpers
+
+### ParsePathParams
+
+Extract param types from path pattern:
+
+```tsx
+import type { ParsePathParams } from '@tanstack/react-router'
+
+type Params = ParsePathParams<'/posts/$postId/comments/$commentId'>
+//   ^? { postId: string; commentId: string }
+```
+
+### ResolveFullSearchSchema
+
+Resolve complete search schema including parent routes:
+
+```tsx
+import type { ResolveFullSearchSchema } from '@tanstack/react-router'
+
+type Search = ResolveFullSearchSchema<
+  typeof parentRoute,
+  typeof searchValidator
+>
+```
+
+### MakeRouteMatch
+
+Create a route match type:
+
+```tsx
+import type { MakeRouteMatch } from '@tanstack/react-router'
+
+type PostMatch = MakeRouteMatch<typeof postRoute>
+```
+
+## Generic Components
+
+Build reusable type-safe components:
+
+```tsx
+function RouteTitle<TRoute extends AnyRoute>({
+  from,
+}: {
+  from: TRoute['id']
+}) {
+  const data = useLoaderData({ from })
+  return <h1>{data.title}</h1>
+}
+
+// Usage
+<RouteTitle from="/posts/$postId" />
+```
+
+## TSConfig Setup
+
+Enable strict mode for best type safety:
+
+```json
+{
+  "compilerOptions": {
+    "strict": true,
+    "strictNullChecks": true,
+    "noUncheckedIndexedAccess": true,
+    "moduleResolution": "bundler",
+    "types": ["@tanstack/react-router"]
+  }
+}
+```
+
+## Type Errors
+
+### Common Issues
+
+#### Missing Router Registration
+
+```tsx
+// ❌ Hooks have loose types
+const params = useParams()
+
+// ✅ Register router globally
+declare module '@tanstack/react-router' {
+  interface Register {
+    router: typeof router
+  }
+}
+```
+
+#### Wrong From Parameter
+
+```tsx
+// ❌ Type error: route doesn't exist
+const data = useLoaderData({ from: '/wrong/path' })
+
+// ✅ Use correct route ID
+const data = useLoaderData({ from: '/posts/$postId' })
+```
+
+#### Invalid Navigation
+
+```tsx
+// ❌ Type error: wrong param type
+<Link to="/posts/$postId" params={{ postId: '123' }} />
+
+// ✅ Use correct type after parsing
+<Link to="/posts/$postId" params={{ postId: 123 }} />
+```
+
+## Type Generation
+
+### Manual Generation
+
+```bash
+npx @tanstack/router-cli generate
+```
+
+### Watch Mode
+
+```bash
+npx @tanstack/router-cli watch
+```
+
+### In Package Scripts
+
+```json
+{
+  "scripts": {
+    "dev": "tanstack-router-cli watch & vite",
+    "build": "tanstack-router-cli generate && vite build"
+  }
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Always Register Router Type">
+    Register your router type globally for complete type inference across your app.
+  </Accordion>
+  
+  <Accordion title="Use Validators for Search Params">
+    Define search parameters with Zod, Valibot, or ArkType for runtime validation and type safety.
+  </Accordion>
+  
+  <Accordion title="Enable Strict TypeScript">
+    Use `strict: true` and `strictNullChecks: true` in tsconfig.json for maximum type safety.
+  </Accordion>
+  
+  <Accordion title="Specify 'from' Parameter">
+    Always specify `from` in hooks for route-specific types instead of loose union types.
+  </Accordion>
+  
+  <Accordion title="Parse Path Parameters">
+    Transform path params from strings to typed values using `params.parse` for better DX.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Search Params" icon="magnifying-glass" href="./search-params">
+    Type-safe search parameter validation
+  </Card>
+  <Card title="Path Params" icon="brackets-curly" href="./path-params">
+    Type-safe path parameter parsing
+  </Card>
+  <Card title="Loaders" icon="download" href="./loaders">
+    Type-safe data loading
+  </Card>
+  <Card title="Routes" icon="route" href="./routes">
+    Configure route type inference
+  </Card>
+</CardGroup>

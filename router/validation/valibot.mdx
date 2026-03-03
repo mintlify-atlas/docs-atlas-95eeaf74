@@ -1,0 +1,428 @@
+---
+title: "Valibot Adapter"
+description: "Validate search parameters with Valibot in TanStack Router"
+---
+
+The Valibot adapter enables type-safe search parameter validation using [Valibot](https://valibot.dev), a lightweight, modular validation library with excellent TypeScript support.
+
+## Installation
+
+Install both the Valibot adapter and Valibot itself:
+
+<CodeGroup>
+
+```bash npm
+npm install @tanstack/valibot-adapter valibot
+```
+
+```bash pnpm
+pnpm add @tanstack/valibot-adapter valibot
+```
+
+```bash yarn
+yarn add @tanstack/valibot-adapter valibot
+```
+
+</CodeGroup>
+
+<Note>
+  Valibot requires version `^1.0.0`, `^1.0.0-beta.5`, or `^1.0.0-rc`
+</Note>
+
+## Basic Usage
+
+Import the `valibotValidator` function and pass it a Valibot schema:
+
+```tsx
+import { createRoute } from '@tanstack/react-router'
+import { valibotValidator } from '@tanstack/valibot-adapter'
+import * as v from 'valibot'
+
+const invoicesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'invoices',
+  validateSearch: valibotValidator(
+    v.object({
+      page: v.number(),
+      filter: v.optional(v.string()),
+    }),
+  ),
+})
+```
+
+Now your search parameters are validated and typed:
+
+```tsx
+function Invoices() {
+  const search = invoicesRoute.useSearch()
+  // search.page is number
+  // search.filter is string | undefined
+  
+  return <div>Page {search.page}</div>
+}
+```
+
+## Why Valibot?
+
+Valibot is designed to be:
+
+- **Lightweight** - Smaller bundle size than Zod (~1.5kb min+gzip for basic usage)
+- **Modular** - Tree-shakeable, only bundle what you use
+- **Fast** - Optimized for runtime performance
+- **Type-safe** - Excellent TypeScript inference
+
+This makes it ideal for applications where bundle size matters.
+
+## Advanced Validation
+
+Valibot provides comprehensive validation capabilities:
+
+### String Validation
+
+```tsx
+import * as v from 'valibot'
+
+valibotValidator(
+  v.object({
+    email: v.pipe(v.string(), v.email()),
+    username: v.pipe(v.string(), v.minLength(3), v.maxLength(20)),
+    role: v.picklist(['admin', 'user', 'guest']),
+  }),
+)
+```
+
+### Number Validation
+
+```tsx
+import * as v from 'valibot'
+
+valibotValidator(
+  v.object({
+    page: v.pipe(v.number(), v.integer(), v.minValue(1)),
+    limit: v.pipe(v.number(), v.minValue(1), v.maxValue(100)),
+    price: v.pipe(v.number(), v.multipleOf(0.01)),
+  }),
+)
+```
+
+### Date Handling
+
+```tsx
+import * as v from 'valibot'
+
+valibotValidator(
+  v.object({
+    startDate: v.pipe(v.string(), v.isoDate()),
+    endDate: v.pipe(v.string(), v.transform((str) => new Date(str))),
+  }),
+)
+```
+
+### Arrays and Complex Types
+
+```tsx
+import * as v from 'valibot'
+
+valibotValidator(
+  v.object({
+    tags: v.array(v.string()),
+    filters: v.object({
+      status: v.picklist(['active', 'pending', 'completed']),
+      priority: v.optional(v.number()),
+    }),
+  }),
+)
+```
+
+## Default Values
+
+Use Valibot's `optional()` with a default parameter:
+
+```tsx
+import * as v from 'valibot'
+
+valibotValidator(
+  v.object({
+    page: v.optional(v.number(), 1),
+    sort: v.optional(v.picklist(['asc', 'desc']), 'asc'),
+  }),
+)
+```
+
+## Fallback Values
+
+Handle validation errors gracefully with `fallback()`:
+
+```tsx
+import * as v from 'valibot'
+
+valibotValidator(
+  v.object({
+    page: v.fallback(v.number(), 1),
+    query: v.fallback(v.string(), ''),
+  }),
+)
+```
+
+If parsing fails, the fallback value is used instead of throwing an error.
+
+## Transformations
+
+Valibot makes it easy to transform validated data:
+
+```tsx
+import * as v from 'valibot'
+
+valibotValidator(
+  v.object({
+    // Parse string to number
+    price: v.pipe(
+      v.string(),
+      v.transform((str) => parseFloat(str)),
+    ),
+    
+    // Uppercase transformation
+    code: v.pipe(
+      v.string(),
+      v.toUpperCase(),
+    ),
+    
+    // Date parsing
+    createdAt: v.pipe(
+      v.string(),
+      v.transform((str) => new Date(str)),
+    ),
+  }),
+)
+```
+
+## Type Safety
+
+Valibot provides full type inference:
+
+```tsx
+import * as v from 'valibot'
+
+const schema = v.object({
+  page: v.number(),
+  filter: v.optional(v.string()),
+})
+
+const route = createRoute({
+  path: '/search',
+  validateSearch: valibotValidator(schema),
+})
+
+// Fully typed in components
+function SearchPage() {
+  const { page, filter } = route.useSearch()
+  //      ^? number
+  //            ^? string | undefined
+}
+
+// Typed navigation
+<Link 
+  to="/search" 
+  search={{ 
+    page: 1,  // ✓ Valid
+    filter: 'active',  // ✓ Valid
+    // @ts-expect-error - invalid is not in schema
+    invalid: true,  // ✗ Type error
+  }}
+>
+  Search
+</Link>
+```
+
+## Custom Validation
+
+Create custom validators with Valibot's pipe system:
+
+```tsx
+import * as v from 'valibot'
+
+// Custom validator for positive even numbers
+const evenNumber = () => 
+  v.custom<number>(
+    (value) => typeof value === 'number' && value % 2 === 0,
+    'Must be an even number',
+  )
+
+valibotValidator(
+  v.object({
+    count: v.pipe(v.number(), evenNumber()),
+  }),
+)
+```
+
+## Error Handling
+
+When validation fails, Valibot throws a `ValiError`:
+
+```tsx
+import * as v from 'valibot'
+
+// This will fail if page is not a valid number
+valibotValidator(
+  v.object({
+    page: v.number(),
+  }),
+)
+
+// Handle validation errors
+try {
+  // Invalid navigation attempt
+} catch (error) {
+  if (error instanceof v.ValiError) {
+    console.log('Validation errors:', error.issues)
+  }
+}
+```
+
+## Real-World Example
+
+Here's a complete example with pagination, filtering, and sorting:
+
+```tsx
+import { createRoute, Link } from '@tanstack/react-router'
+import { valibotValidator } from '@tanstack/valibot-adapter'
+import * as v from 'valibot'
+
+const invoicesSearchSchema = v.object({
+  page: v.optional(
+    v.pipe(v.number(), v.integer(), v.minValue(1)),
+    1,
+  ),
+  limit: v.optional(
+    v.pipe(v.number(), v.integer(), v.minValue(10), v.maxValue(100)),
+    25,
+  ),
+  sort: v.optional(
+    v.picklist(['date', 'amount', 'customer']),
+    'date',
+  ),
+  order: v.optional(
+    v.picklist(['asc', 'desc']),
+    'desc',
+  ),
+  status: v.optional(
+    v.picklist(['paid', 'pending', 'overdue']),
+  ),
+  search: v.optional(v.string()),
+})
+
+const invoicesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'invoices',
+  validateSearch: valibotValidator(invoicesSearchSchema),
+  component: Invoices,
+})
+
+function Invoices() {
+  const search = invoicesRoute.useSearch()
+  
+  return (
+    <div>
+      <h1>Invoices - Page {search.page}</h1>
+      
+      <Link
+        to="/invoices"
+        search={{
+          ...search,
+          page: search.page + 1,
+        }}
+      >
+        Next Page
+      </Link>
+      
+      <Link
+        to="/invoices"
+        search={{
+          ...search,
+          status: 'overdue',
+        }}
+      >
+        Show Overdue
+      </Link>
+    </div>
+  )
+}
+```
+
+## Bundle Size Comparison
+
+Valibot's modular design means you only bundle what you use:
+
+```tsx
+// This simple schema
+import * as v from 'valibot'
+
+const schema = v.object({
+  page: v.number(),
+  name: v.string(),
+})
+
+// Bundles approximately:
+// - Valibot: ~1.5kb min+gzip
+// - Zod equivalent: ~14kb min+gzip
+```
+
+For complex validations, the difference is smaller, but Valibot remains lighter.
+
+## API Reference
+
+### `valibotValidator(schema)`
+
+Creates a validator adapter from a Valibot schema.
+
+**Parameters:**
+- `schema` - A Valibot `GenericSchema`
+
+**Returns:**
+- A `ValidatorAdapter` that can be used with `validateSearch`
+
+**Type Inference:**
+- Input type: Inferred from `InferInput<TSchema>`
+- Output type: Inferred from `InferOutput<TSchema>`
+
+## Migration from Zod
+
+If you're switching from Zod, here are the key differences:
+
+<CodeGroup>
+
+```tsx Zod
+import { z } from 'zod'
+
+const schema = z.object({
+  page: z.number().default(1),
+  name: z.string().min(3).max(20),
+  email: z.string().email(),
+})
+```
+
+```tsx Valibot
+import * as v from 'valibot'
+
+const schema = v.object({
+  page: v.optional(v.number(), 1),
+  name: v.pipe(v.string(), v.minLength(3), v.maxLength(20)),
+  email: v.pipe(v.string(), v.email()),
+})
+```
+
+</CodeGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+
+<Card title="Zod Adapter" icon="z" href="/router/validation/zod">
+  Full-featured validation with Zod
+</Card>
+
+<Card title="ArkType Adapter" icon="a" href="/router/validation/arktype">
+  TypeScript-like validation syntax
+</Card>
+
+</CardGroup>

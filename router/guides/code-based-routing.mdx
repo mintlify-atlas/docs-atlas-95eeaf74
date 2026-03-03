@@ -1,0 +1,289 @@
+---
+title: Code-based routing
+description: Manually define your route tree in code for maximum flexibility
+---
+
+Code-based routing gives you full control over your route tree by manually defining routes using JavaScript/TypeScript. This approach offers maximum flexibility and explicit control over your application's routing structure.
+
+## Overview
+
+With code-based routing, you create routes using the `createRoute` API and compose them into a route tree. Benefits include:
+
+- **Explicit configuration** - Full visibility into your route structure
+- **Runtime flexibility** - Conditionally create routes based on runtime logic
+- **No build step** - Works without bundler plugins
+- **Type safety** - Full TypeScript support
+
+## Basic setup
+
+<Steps>
+  <Step title="Create the root route">
+    Every router needs a root route:
+
+    ```tsx src/routes.tsx
+    import { createRootRoute, Outlet } from '@tanstack/react-router'
+    import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
+
+    const rootRoute = createRootRoute({
+      component: () => (
+        <>
+          <div>
+            <nav>
+              <Link to="/">Home</Link>
+              <Link to="/about">About</Link>
+            </nav>
+          </div>
+          <hr />
+          <Outlet />
+          <TanStackRouterDevtools />
+        </>
+      ),
+    })
+    ```
+  </Step>
+
+  <Step title="Create child routes">
+    Define individual routes with `createRoute`:
+
+    ```tsx src/routes.tsx
+    const indexRoute = createRoute({
+      getParentRoute: () => rootRoute,
+      path: '/',
+      component: () => <div>Welcome Home!</div>,
+    })
+
+    const aboutRoute = createRoute({
+      getParentRoute: () => rootRoute,
+      path: '/about',
+      component: () => <div>About Us</div>,
+    })
+    ```
+  </Step>
+
+  <Step title="Build the route tree">
+    Combine routes into a tree structure:
+
+    ```tsx src/routes.tsx
+    const routeTree = rootRoute.addChildren([
+      indexRoute,
+      aboutRoute,
+    ])
+    ```
+  </Step>
+
+  <Step title="Create the router">
+    Initialize the router with your route tree:
+
+    ```tsx src/main.tsx
+    import { createRouter, RouterProvider } from '@tanstack/react-router'
+    import { routeTree } from './routes'
+
+    const router = createRouter({ routeTree })
+
+    // Register for type safety
+    declare module '@tanstack/react-router' {
+      interface Register {
+        router: typeof router
+      }
+    }
+
+    function App() {
+      return <RouterProvider router={router} />
+    }
+    ```
+  </Step>
+</Steps>
+
+## Route configuration
+
+### Data loading
+
+Define loaders to fetch data before rendering:
+
+```tsx
+const postRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/posts/$postId',
+  loader: async ({ params }) => {
+    const post = await fetchPost(params.postId)
+    return post
+  },
+  component: PostComponent,
+})
+
+function PostComponent() {
+  const post = postRoute.useLoaderData()
+  return <h1>{post.title}</h1>
+}
+```
+
+### Search params validation
+
+Validate and type search parameters:
+
+```tsx
+import { z } from 'zod'
+
+const postsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/posts',
+  validateSearch: z.object({
+    page: z.number().default(1),
+    filter: z.string().optional(),
+  }),
+})
+
+function PostsList() {
+  const { page, filter } = postsRoute.useSearch()
+  // page and filter are fully typed!
+}
+```
+
+### Nested routes
+
+Create layout routes with children:
+
+```tsx
+const postsLayoutRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/posts',
+  component: () => (
+    <div>
+      <h1>Posts</h1>
+      <Outlet />
+    </div>
+  ),
+})
+
+const postsIndexRoute = createRoute({
+  getParentRoute: () => postsLayoutRoute,
+  path: '/',
+  component: () => <div>Select a post</div>,
+})
+
+const postDetailRoute = createRoute({
+  getParentRoute: () => postsLayoutRoute,
+  path: '/$postId',
+  component: PostDetail,
+})
+
+const routeTree = rootRoute.addChildren([
+  postsLayoutRoute.addChildren([
+    postsIndexRoute,
+    postDetailRoute,
+  ]),
+])
+```
+
+## Lazy loading
+
+Split routes for code splitting:
+
+```tsx
+const postsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/posts',
+}).lazy(() => import('./routes/posts.lazy').then((m) => m.Route))
+```
+
+```tsx src/routes/posts.lazy.tsx
+import { createLazyRoute } from '@tanstack/react-router'
+
+export const Route = createLazyRoute('/posts')({
+  component: PostsComponent,
+})
+
+function PostsComponent() {
+  return <div>Posts</div>
+}
+```
+
+## Error handling
+
+Define error boundaries:
+
+```tsx
+const postRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/posts/$postId',
+  loader: async ({ params }) => {
+    const post = await fetchPost(params.postId)
+    if (!post) throw new Error('Post not found')
+    return post
+  },
+  errorComponent: ({ error }) => (
+    <div className="error">
+      <h2>Error loading post</h2>
+      <p>{error.message}</p>
+    </div>
+  ),
+  component: PostComponent,
+})
+```
+
+## Path parameters
+
+Define dynamic segments:
+
+```tsx
+// Single parameter
+const userRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/users/$userId',
+})
+
+// Multiple parameters
+const fileRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/files/$projectId/$fileId',
+})
+
+// Catch-all parameter
+const docsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/docs/$',
+})
+```
+
+## Type registration
+
+Register your router for global type safety:
+
+```tsx
+const router = createRouter({ routeTree })
+
+declare module '@tanstack/react-router' {
+  interface Register {
+    router: typeof router
+  }
+}
+```
+
+<Note>
+Type registration enables autocomplete and type checking throughout your application.
+</Note>
+
+## Best practices
+
+<Accordion title="Organize routes by feature">
+Group related routes together to keep your route tree maintainable.
+</Accordion>
+
+<Accordion title="Use lazy loading for large routes">
+Split heavy components to reduce initial bundle size.
+</Accordion>
+
+<Accordion title="Validate search params">
+Always validate search params for type safety and runtime correctness.
+</Accordion>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="File-based routing" icon="folder-tree" href="/router/guides/file-based-routing">
+    Explore automatic route generation
+  </Card>
+  <Card title="Data loading" icon="database" href="/router/guides/data-loading">
+    Learn advanced data loading patterns
+  </Card>
+</CardGroup>

@@ -1,0 +1,343 @@
+---
+title: Server Functions
+---
+
+# Server Functions
+
+Server Functions are the primary way to execute server-side code in TanStack Start. They enable type-safe, secure communication between client and server with automatic serialization and built-in middleware support.
+
+## What are Server Functions?
+
+Server Functions are functions that run exclusively on the server but can be called from anywhere in your application. They provide:
+
+- **Type Safety**: Full TypeScript inference from input to output
+- **Automatic Serialization**: Built-in handling of complex data types
+- **Secure by Default**: Server code never ships to the client
+- **Middleware Support**: Composable middleware for auth, validation, and more
+- **HTTP Method Control**: Choose GET or POST for each function
+
+## Creating Server Functions
+
+<Steps>
+
+<Step>
+
+### Basic Server Function
+
+Create a server function using `createServerFn()`:
+
+```tsx
+import { createServerFn } from '@tanstack/react-start'
+
+// Simple GET request (default)
+const getPosts = createServerFn().handler(async () => {
+  const res = await fetch('https://api.example.com/posts')
+  return res.json()
+})
+
+// Use in component
+function PostsList() {
+  const [posts, setPosts] = useState([])
+  
+  useEffect(() => {
+    getPosts().then(setPosts)
+  }, [])
+  
+  return <div>{/* render posts */}</div>
+}
+```
+
+</Step>
+
+<Step>
+
+### POST Server Function with Input
+
+Use POST for mutations and when passing data:
+
+```tsx
+import { createServerFn } from '@tanstack/react-start'
+
+const createPost = createServerFn({ method: 'POST' })
+  .inputValidator((data: { title: string; body: string }) => data)
+  .handler(async ({ data }) => {
+    const res = await fetch('https://api.example.com/posts', {
+      method: 'POST',
+      body: JSON.stringify(data),
+      headers: { 'Content-Type': 'application/json' }
+    })
+    return res.json()
+  })
+
+// Call from component
+function CreatePostForm() {
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    const formData = new FormData(e.target)
+    await createPost({
+      data: {
+        title: formData.get('title'),
+        body: formData.get('body')
+      }
+    })
+  }
+  
+  return <form onSubmit={handleSubmit}>{/* form fields */}</form>
+}
+```
+
+</Step>
+
+<Step>
+
+### Input Validation with Zod
+
+Use schema validation for type-safe inputs:
+
+```tsx
+import { createServerFn } from '@tanstack/react-start'
+import { z } from 'zod'
+
+const postSchema = z.object({
+  title: z.string().min(1),
+  body: z.string().min(10)
+})
+
+const createPost = createServerFn({ method: 'POST' })
+  .inputValidator(postSchema)
+  .handler(async ({ data }) => {
+    // data is fully typed as { title: string; body: string }
+    const res = await fetch('https://api.example.com/posts', {
+      method: 'POST',
+      body: JSON.stringify(data),
+      headers: { 'Content-Type': 'application/json' }
+    })
+    return res.json()
+  })
+```
+
+</Step>
+
+<Step>
+
+### Access Server Context
+
+Access request information and server-only resources:
+
+```tsx
+import { createServerFn } from '@tanstack/react-start'
+import { getRequestHeaders } from '@tanstack/react-start/server'
+
+const getUser = createServerFn().handler(async ({ context }) => {
+  // Access request headers
+  const headers = getRequestHeaders()
+  const authToken = headers.get('authorization')
+  
+  // Access context from middleware
+  const userId = context.userId
+  
+  // Server-only code (database, env vars, etc.)
+  const user = await db.users.findUnique({ where: { id: userId } })
+  
+  return user
+})
+```
+
+</Step>
+
+</Steps>
+
+## Server Function Middleware
+
+Compose reusable logic with middleware:
+
+```tsx
+import { createServerFn, createMiddleware } from '@tanstack/react-start'
+
+// Auth middleware
+const authMiddleware = createMiddleware().server(async ({ next, context }) => {
+  const session = await getSession()
+  
+  if (!session) {
+    throw new Response('Unauthorized', { status: 401 })
+  }
+  
+  return next({
+    context: {
+      userId: session.userId,
+      role: session.role
+    }
+  })
+})
+
+// Apply middleware to server function
+const deletePost = createServerFn({ method: 'POST' })
+  .middleware([authMiddleware])
+  .inputValidator((id: string) => id)
+  .handler(async ({ data, context }) => {
+    // context.userId is available from middleware
+    await db.posts.delete({
+      where: { id: data, userId: context.userId }
+    })
+    
+    return { success: true }
+  })
+```
+
+## Using useServerFn Hook
+
+For better integration with router navigation:
+
+```tsx
+import { useServerFn } from '@tanstack/react-start'
+import { createServerFn, redirect } from '@tanstack/react-start'
+
+const loginFn = createServerFn({ method: 'POST' })
+  .handler(async ({ data }) => {
+    const session = await authenticate(data)
+    
+    if (!session) {
+      throw new Error('Invalid credentials')
+    }
+    
+    // Redirect after successful login
+    throw redirect({ to: '/dashboard' })
+  })
+
+function LoginForm() {
+  // useServerFn handles redirects automatically
+  const login = useServerFn(loginFn)
+  
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    await login({ data: { email, password } })
+    // Automatically navigates on redirect
+  }
+  
+  return <form onSubmit={handleSubmit}>{/* form */}</form>
+}
+```
+
+## Streaming Responses
+
+Return `ReadableStream` for progressive data loading:
+
+```tsx
+import { createServerFn } from '@tanstack/react-start'
+
+const streamData = createServerFn().handler(async () => {
+  return new ReadableStream({
+    async start(controller) {
+      for (let i = 0; i < 10; i++) {
+        await new Promise(resolve => setTimeout(resolve, 500))
+        controller.enqueue({ count: i })
+      }
+      controller.close()
+    }
+  })
+})
+
+function StreamingComponent() {
+  const [data, setData] = useState([])
+  
+  useEffect(() => {
+    streamData().then(async (stream) => {
+      const reader = stream.getReader()
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        setData(prev => [...prev, value])
+      }
+    })
+  }, [])
+  
+  return <div>{data.map(d => <div key={d.count}>{d.count}</div>)}</div>
+}
+```
+
+## Advanced Patterns
+
+### FormData Support
+
+Handle file uploads and form submissions:
+
+```tsx
+const uploadFile = createServerFn({ method: 'POST' })
+  .handler(async ({ data }) => {
+    // data is FormData
+    const file = data.get('file') as File
+    const buffer = await file.arrayBuffer()
+    
+    // Process file server-side
+    const url = await uploadToStorage(buffer, file.name)
+    
+    return { url }
+  })
+
+// Call with FormData
+function UploadForm() {
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    const formData = new FormData(e.target)
+    const result = await uploadFile({ data: formData })
+    console.log('Uploaded:', result.url)
+  }
+  
+  return (
+    <form onSubmit={handleSubmit}>
+      <input type="file" name="file" />
+      <button type="submit">Upload</button>
+    </form>
+  )
+}
+```
+
+### Error Handling
+
+```tsx
+const fetchPost = createServerFn({ method: 'POST' })
+  .handler(async ({ data }) => {
+    const res = await fetch(`https://api.example.com/posts/${data}`)
+    
+    if (!res.ok) {
+      if (res.status === 404) {
+        throw notFound()
+      }
+      throw new Error('Failed to fetch post')
+    }
+    
+    return res.json()
+  })
+
+// Handle errors in component
+function Post({ id }) {
+  const [error, setError] = useState(null)
+  
+  const loadPost = async () => {
+    try {
+      const post = await fetchPost({ data: id })
+      setPost(post)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+  
+  return error ? <div>Error: {error}</div> : <div>{/* post */}</div>
+}
+```
+
+## Best Practices
+
+- **Use GET for reads**: GET requests are cached by default and support URL parameters
+- **Use POST for mutations**: POST requests are never cached and support larger payloads
+- **Validate inputs**: Always use input validators for type safety and security
+- **Keep functions focused**: Each server function should do one thing well
+- **Use middleware for cross-cutting concerns**: Auth, logging, rate limiting, etc.
+- **Handle errors gracefully**: Return meaningful error messages to the client
+- **Type everything**: Leverage TypeScript for end-to-end type safety
+
+## Learn More
+
+- [Middleware Guide](/start/guides/middleware)
+- [SSR Streaming](/start/guides/ssr-streaming)
+- [Deployment](/start/guides/deployment)

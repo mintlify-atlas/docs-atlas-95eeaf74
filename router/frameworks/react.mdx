@@ -1,0 +1,599 @@
+---
+title: React Router
+description: Framework-specific APIs, components, and hooks for React
+---
+
+# React Router
+
+TanStack Router provides first-class support for React with type-safe components, hooks, and patterns designed specifically for React applications.
+
+## Installation
+
+```bash
+npm install @tanstack/react-router
+```
+
+## Core Components
+
+### RouterProvider
+
+The top-level component that renders active route matches and provides the router to the React tree via context.
+
+```tsx
+import { RouterProvider, createRouter } from '@tanstack/react-router'
+
+const router = createRouter({ routeTree })
+
+function App() {
+  return <RouterProvider router={router} />
+}
+```
+
+### Link
+
+Type-safe navigation component with preloading and active state support.
+
+```tsx
+import { Link } from '@tanstack/react-router'
+
+function Navigation() {
+  return (
+    <Link
+      to="/posts/$postId"
+      params={{ postId: '123' }}
+      activeProps={{
+        className: 'font-bold',
+      }}
+      activeOptions={{ exact: true }}
+    >
+      View Post
+    </Link>
+  )
+}
+```
+
+**Key Props:**
+- `to` - Type-safe destination path
+- `params` - Path parameters
+- `search` - Search parameters
+- `activeProps` - Props applied when link is active
+- `inactiveProps` - Props applied when link is inactive
+- `preload` - Controls preloading behavior (`false`, `'intent'`, `'viewport'`)
+- `disabled` - Disables navigation
+
+### Outlet
+
+Renders child route matches at the current level.
+
+```tsx
+import { Outlet } from '@tanstack/react-router'
+
+function LayoutComponent() {
+  return (
+    <div>
+      <header>Header</header>
+      <main>
+        <Outlet />
+      </main>
+    </div>
+  )
+}
+```
+
+### ErrorComponent
+
+Default error boundary component that displays error details.
+
+```tsx
+import { ErrorComponent } from '@tanstack/react-router'
+import type { ErrorComponentProps } from '@tanstack/react-router'
+
+function CustomErrorComponent({ error }: ErrorComponentProps) {
+  if (error instanceof NotFoundError) {
+    return <div>{error.message}</div>
+  }
+  
+  return <ErrorComponent error={error} />
+}
+```
+
+### Navigate
+
+Component-based navigation trigger.
+
+```tsx
+import { Navigate } from '@tanstack/react-router'
+
+function RedirectComponent() {
+  return <Navigate to="/home" />
+}
+```
+
+## React Hooks
+
+### useRouter
+
+Access the router instance from any component.
+
+```tsx
+import { useRouter } from '@tanstack/react-router'
+
+function MyComponent() {
+  const router = useRouter()
+  
+  const handleNavigate = () => {
+    router.navigate({ to: '/about' })
+  }
+  
+  return <button onClick={handleNavigate}>Go to About</button>
+}
+```
+
+### useNavigate
+
+Type-safe programmatic navigation.
+
+```tsx
+import { useNavigate } from '@tanstack/react-router'
+
+function MyComponent() {
+  const navigate = useNavigate({ from: '/posts' })
+  
+  const handleClick = () => {
+    navigate({ to: '/posts/$postId', params: { postId: '123' } })
+  }
+  
+  return <button onClick={handleClick}>View Post</button>
+}
+```
+
+### useParams
+
+Access route path parameters with type safety.
+
+```tsx
+import { useParams } from '@tanstack/react-router'
+
+function PostComponent() {
+  const params = useParams({ from: '/posts/$postId' })
+  
+  return <div>Post ID: {params.postId}</div>
+}
+```
+
+### useSearch
+
+Access route search parameters with type safety.
+
+```tsx
+import { useSearch } from '@tanstack/react-router'
+
+function PostsComponent() {
+  const search = useSearch({ from: '/posts' })
+  
+  return <div>Filter: {search.filter}</div>
+}
+```
+
+### useLoaderData
+
+Access data loaded by the route's loader function.
+
+```tsx
+import { useLoaderData } from '@tanstack/react-router'
+
+function PostComponent() {
+  const post = useLoaderData({ from: '/posts/$postId' })
+  
+  return (
+    <div>
+      <h1>{post.title}</h1>
+      <p>{post.body}</p>
+    </div>
+  )
+}
+```
+
+### useMatch
+
+Access the current route match with full type safety.
+
+```tsx
+import { useMatch } from '@tanstack/react-router'
+
+function MyComponent() {
+  const match = useMatch({ from: '/posts/$postId' })
+  
+  return (
+    <div>
+      <p>Status: {match.status}</p>
+      <p>Post ID: {match.params.postId}</p>
+    </div>
+  )
+}
+```
+
+### useRouteContext
+
+Access route context provided by parent routes.
+
+```tsx
+import { useRouteContext } from '@tanstack/react-router'
+
+function MyComponent() {
+  const context = useRouteContext({ from: '/posts/$postId' })
+  
+  return <div>User: {context.user.name}</div>
+}
+```
+
+### useLocation
+
+Access the current location object.
+
+```tsx
+import { useLocation } from '@tanstack/react-router'
+
+function MyComponent() {
+  const location = useLocation()
+  
+  return (
+    <div>
+      <p>Pathname: {location.pathname}</p>
+      <p>Hash: {location.hash}</p>
+    </div>
+  )
+}
+```
+
+### useRouterState
+
+Access router state with optional selector.
+
+```tsx
+import { useRouterState } from '@tanstack/react-router'
+
+function MyComponent() {
+  const isLoading = useRouterState({
+    select: (state) => state.isLoading,
+  })
+  
+  return isLoading ? <div>Loading...</div> : null
+}
+```
+
+### useMatchRoute
+
+Check if a specific route matches the current location.
+
+```tsx
+import { useMatchRoute } from '@tanstack/react-router'
+
+function MyComponent() {
+  const matchRoute = useMatchRoute()
+  const isPostsRoute = matchRoute({ to: '/posts' })
+  
+  return <div>{isPostsRoute ? 'On Posts Page' : 'Not on Posts Page'}</div>
+}
+```
+
+### useLinkProps
+
+Build anchor-like props for custom link components.
+
+```tsx
+import { useLinkProps } from '@tanstack/react-router'
+
+function CustomLink(props) {
+  const linkProps = useLinkProps(props)
+  
+  return <a {...linkProps} className="custom-link" />
+}
+```
+
+### useBlocker
+
+Block navigation based on a condition (useful for unsaved changes).
+
+```tsx
+import { useBlocker } from '@tanstack/react-router'
+
+function FormComponent() {
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  
+  useBlocker({
+    condition: hasUnsavedChanges,
+    blockerFn: () => window.confirm('You have unsaved changes. Leave anyway?'),
+  })
+  
+  return <form>...</form>
+}
+```
+
+## Route API
+
+### RouteApi
+
+Route-specific API with pre-bound hooks for a specific route ID.
+
+```tsx
+import { getRouteApi } from '@tanstack/react-router'
+
+const postRoute = getRouteApi('/posts/$postId')
+
+function PostComponent() {
+  const params = postRoute.useParams()
+  const post = postRoute.useLoaderData()
+  const navigate = postRoute.useNavigate()
+  
+  return (
+    <div>
+      <h1>{post.title}</h1>
+      <postRoute.Link to="/posts">Back to Posts</postRoute.Link>
+    </div>
+  )
+}
+```
+
+## Creating Routes
+
+### Code-based Routes
+
+```tsx
+import { createRoute, createRootRoute } from '@tanstack/react-router'
+
+const rootRoute = createRootRoute({
+  component: RootComponent,
+})
+
+function RootComponent() {
+  return (
+    <>
+      <nav>...</nav>
+      <Outlet />
+    </>
+  )
+}
+
+const indexRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/',
+  component: IndexComponent,
+})
+
+function IndexComponent() {
+  return <div>Welcome Home!</div>
+}
+
+const postRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/posts/$postId',
+  loader: ({ params }) => fetchPost(params.postId),
+  component: PostComponent,
+})
+
+function PostComponent() {
+  const post = postRoute.useLoaderData()
+  return <div>{post.title}</div>
+}
+
+const routeTree = rootRoute.addChildren([indexRoute, postRoute])
+```
+
+### File-based Routes
+
+```tsx
+// src/routes/__root.tsx
+import { createRootRoute, Outlet } from '@tanstack/react-router'
+
+export const Route = createRootRoute({
+  component: () => (
+    <>
+      <nav>...</nav>
+      <Outlet />
+    </>
+  ),
+})
+
+// src/routes/index.tsx
+import { createFileRoute } from '@tanstack/react-router'
+
+export const Route = createFileRoute('/')({ 
+  component: () => <div>Welcome Home!</div>,
+})
+
+// src/routes/posts/$postId.tsx
+import { createFileRoute } from '@tanstack/react-router'
+
+export const Route = createFileRoute('/posts/$postId')({
+  loader: ({ params }) => fetchPost(params.postId),
+  component: PostComponent,
+})
+
+function PostComponent() {
+  const post = Route.useLoaderData()
+  return <div>{post.title}</div>
+}
+```
+
+## SSR Support
+
+React Router includes specialized SSR utilities:
+
+```tsx
+// Server-side
+import { createMemoryHistory } from '@tanstack/react-router'
+
+const history = createMemoryHistory({
+  initialEntries: [request.url],
+})
+
+const router = createRouter({ 
+  routeTree,
+  history,
+})
+
+await router.load()
+
+const html = ReactDOMServer.renderToString(
+  <RouterProvider router={router} />
+)
+
+// Client-side
+import { createBrowserHistory } from '@tanstack/react-router'
+
+const history = createBrowserHistory()
+const router = createRouter({ routeTree, history })
+
+ReactDOM.hydrateRoot(
+  document.getElementById('root'),
+  <RouterProvider router={router} />
+)
+```
+
+## React-Specific Features
+
+### Error Boundaries
+
+React Router integrates with React's error boundaries:
+
+```tsx
+const route = createRoute({
+  path: '/posts/$postId',
+  errorComponent: ({ error, reset }) => (
+    <div>
+      <p>Error: {error.message}</p>
+      <button onClick={reset}>Try Again</button>
+    </div>
+  ),
+})
+```
+
+### Suspense Integration
+
+Works seamlessly with React Suspense:
+
+```tsx
+const route = createRoute({
+  path: '/posts',
+  pendingComponent: () => <div>Loading posts...</div>,
+  component: PostsComponent,
+})
+```
+
+### React 19 Support
+
+Fully compatible with React 19 features including:
+- Server Components (RSC)
+- Server Actions
+- Enhanced hydration
+- View Transitions
+
+## Complete Example
+
+```tsx
+import ReactDOM from 'react-dom/client'
+import {
+  RouterProvider,
+  createRouter,
+  createRootRoute,
+  createRoute,
+  Link,
+  Outlet,
+} from '@tanstack/react-router'
+
+const rootRoute = createRootRoute({
+  component: () => (
+    <div>
+      <nav>
+        <Link to="/" activeProps={{ className: 'font-bold' }}>
+          Home
+        </Link>
+        <Link to="/posts" activeProps={{ className: 'font-bold' }}>
+          Posts
+        </Link>
+      </nav>
+      <Outlet />
+    </div>
+  ),
+})
+
+const indexRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/',
+  component: () => <h1>Welcome Home!</h1>,
+})
+
+const postsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/posts',
+  loader: () => fetch('/api/posts').then(r => r.json()),
+  component: PostsComponent,
+})
+
+function PostsComponent() {
+  const posts = postsRoute.useLoaderData()
+  return (
+    <ul>
+      {posts.map(post => (
+        <li key={post.id}>
+          <Link to="/posts/$postId" params={{ postId: post.id }}>
+            {post.title}
+          </Link>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+const routeTree = rootRoute.addChildren([indexRoute, postsRoute])
+const router = createRouter({ routeTree })
+
+declare module '@tanstack/react-router' {
+  interface Register {
+    router: typeof router
+  }
+}
+
+const rootElement = document.getElementById('root')!
+ReactDOM.createRoot(rootElement).render(<RouterProvider router={router} />)
+```
+
+## Best Practices
+
+1. **Type Safety**: Always register your router type for full type safety:
+   ```tsx
+   declare module '@tanstack/react-router' {
+     interface Register {
+       router: typeof router
+     }
+   }
+   ```
+
+2. **Use RouteApi**: For code-split routes, use `getRouteApi` instead of importing routes:
+   ```tsx
+   const route = getRouteApi('/posts/$postId')
+   const data = route.useLoaderData()
+   ```
+
+3. **Preloading**: Configure preloading for better UX:
+   ```tsx
+   const router = createRouter({
+     routeTree,
+     defaultPreload: 'intent', // preload on hover/focus
+   })
+   ```
+
+4. **Error Handling**: Provide custom error components for better UX:
+   ```tsx
+   const route = createRoute({
+     errorComponent: CustomErrorComponent,
+   })
+   ```
+
+5. **Pending States**: Use pending components for loading states:
+   ```tsx
+   const route = createRoute({
+     pendingComponent: () => <Spinner />,
+   })
+   ```

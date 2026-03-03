@@ -1,0 +1,147 @@
+---
+title: "Search Params Validation"
+description: "Type-safe search parameter validation with TanStack Router"
+---
+
+TanStack Router provides first-class support for validating search parameters using popular validation libraries. This ensures your URL state is type-safe and validated at runtime.
+
+## Why Validate Search Params?
+
+Search parameters come from the URL and are inherently untyped strings. Validation helps you:
+
+- **Ensure type safety** - Convert and validate URL strings to typed values
+- **Prevent runtime errors** - Catch invalid data before it reaches your components
+- **Improve developer experience** - Get autocomplete and type checking for search params
+- **Transform data** - Convert strings to numbers, booleans, dates, and complex objects
+
+## How Validation Works
+
+When you define a route with search parameter validation, TanStack Router:
+
+1. Parses the URL search parameters as strings
+2. Passes them through your validator
+3. Transforms the data according to your schema
+4. Provides fully typed search params to your components
+
+```tsx
+const invoicesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'invoices',
+  validateSearch: zodValidator(
+    z.object({
+      page: z.number(),
+      filter: z.string().optional(),
+    }),
+  ),
+})
+
+// In your component
+function Invoices() {
+  const search = invoicesRoute.useSearch()
+  // search.page is typed as number
+  // search.filter is typed as string | undefined
+}
+```
+
+## Supported Validation Libraries
+
+TanStack Router provides official adapters for the most popular validation libraries:
+
+<CardGroup cols={3}>
+
+<Card title="Zod" icon="z" href="/router/validation/zod">
+  The most popular TypeScript-first schema validation library
+</Card>
+
+<Card title="Valibot" icon="v" href="/router/validation/valibot">
+  Lightweight, modular validation library with excellent TypeScript support
+</Card>
+
+<Card title="ArkType" icon="a" href="/router/validation/arktype">
+  Runtime validation with TypeScript-like syntax
+</Card>
+
+</CardGroup>
+
+## Installation
+
+Each validation adapter is published as a separate package. Install the one that matches your validation library:
+
+<CodeGroup>
+
+```bash npm
+npm install @tanstack/zod-adapter zod
+```
+
+```bash pnpm
+pnpm add @tanstack/zod-adapter zod
+```
+
+```bash yarn
+yarn add @tanstack/zod-adapter zod
+```
+
+</CodeGroup>
+
+See the individual adapter pages for library-specific installation instructions.
+
+## Basic Usage
+
+All validation adapters follow the same pattern:
+
+1. Import the validator function from the adapter package
+2. Pass your schema to the validator
+3. Use the validator in the `validateSearch` option of your route
+
+```tsx
+import { createRoute } from '@tanstack/react-router'
+import { zodValidator } from '@tanstack/zod-adapter'
+import { z } from 'zod'
+
+const myRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/my-route',
+  validateSearch: zodValidator(
+    z.object({
+      // Your search param schema
+    }),
+  ),
+})
+```
+
+## Validation Behavior
+
+When validation fails, TanStack Router will:
+
+- Prevent navigation to the route
+- Preserve the current route state
+- Throw a validation error that you can catch and handle
+
+This ensures your components always receive valid, typed data.
+
+## Type Inference
+
+The validation adapters automatically infer TypeScript types from your schemas. This means:
+
+- `useSearch()` returns fully typed search params
+- `<Link>` components enforce correct search param types
+- Navigation functions require valid search params
+
+```tsx
+// TypeScript knows the exact shape of search params
+const search = route.useSearch()
+//    ^? { page: number; filter?: string }
+
+// Type-safe navigation
+<Link to="/invoices" search={{ page: 1 }}>
+  Invoices
+</Link>
+```
+
+## Next Steps
+
+Choose a validation library to get started:
+
+- [Zod Adapter](/router/validation/zod) - Most popular, comprehensive features
+- [Valibot Adapter](/router/validation/valibot) - Lightweight and modular
+- [ArkType Adapter](/router/validation/arktype) - TypeScript-like syntax

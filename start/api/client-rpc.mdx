@@ -1,0 +1,226 @@
+---
+title: Client RPC
+description: Call server functions from the client using RPC
+---
+
+## createClientRpc
+
+Creates a client-side RPC function that calls a server-side function by ID. This is useful for code splitting and lazy loading server functions.
+
+<Note>
+Client RPC functions are typically generated automatically by the build plugin. You usually don't need to call `createClientRpc` manually.
+</Note>
+
+### Basic Usage
+
+```tsx
+import { createClientRpc } from '@tanstack/react-start/client-rpc'
+
+const myFn = createClientRpc('function-id-123')
+
+const result = await myFn('arg1', 'arg2')
+```
+
+### API Reference
+
+<ParamField path="functionId" type="string" required>
+  The unique identifier of the server function to call. This ID is generated during build time and matches the corresponding server function.
+</ParamField>
+
+### How It Works
+
+1. **Build Time**: Server functions are extracted and assigned unique IDs
+2. **Client Import**: Instead of bundling server code, a client RPC stub is created
+3. **Runtime**: The RPC stub fetches and executes the server function by ID
+
+### Generated Code Example
+
+When you write:
+
+```tsx
+// my-function.ts
+import { createServerFn } from '@tanstack/react-start'
+
+export const myServerFn = createServerFn({ method: 'GET' }).handler(async () => {
+  return { data: 'server result' }
+})
+```
+
+The build plugin transforms client imports to:
+
+```tsx
+// my-function.client.ts (generated)
+import { createClientRpc } from '@tanstack/react-start/client-rpc'
+
+export const myServerFn = createClientRpc('my-function-hash-123')
+```
+
+### Function Signature
+
+The created RPC function accepts any arguments and forwards them to the server:
+
+```tsx
+const clientFn = createClientRpc('function-id')
+
+// Call with any number of arguments
+await clientFn()
+await clientFn(arg1)
+await clientFn(arg1, arg2, arg3)
+```
+
+### Properties
+
+The returned function has the following properties:
+
+<ParamField path="url" type="string">
+  The URL endpoint for the server function, constructed from the base URL and function ID.
+</ParamField>
+
+<ParamField path="serverFnMeta" type="ClientFnMeta">
+  Metadata object containing the function ID:
+  ```tsx
+  {
+    id: string // The function identifier
+  }
+  ```
+</ParamField>
+
+<ParamField path="[TSS_SERVER_FUNCTION]" type="true">
+  Internal marker indicating this is a server function stub.
+</ParamField>
+
+### Network Communication
+
+Client RPC functions use the `serverFnFetcher` internally, which:
+
+1. Serializes arguments using Seroval
+2. Sends HTTP request to the server function endpoint
+3. Deserializes the response
+4. Handles errors, redirects, and streaming responses
+
+### Serialization
+
+Arguments and return values are automatically serialized using Seroval, supporting:
+
+- Primitives (string, number, boolean, null, undefined)
+- Objects and arrays
+- Date objects
+- RegExp
+- Maps and Sets
+- Circular references
+- Promises (streaming)
+- Custom serializable types
+
+### Error Handling
+
+```tsx
+import { createClientRpc } from '@tanstack/react-start/client-rpc'
+
+const myFn = createClientRpc('function-id')
+
+try {
+  await myFn()
+} catch (error) {
+  // Errors thrown on server are re-thrown on client
+  console.error(error)
+}
+```
+
+### Custom Fetch
+
+You can configure a custom fetch implementation globally:
+
+```tsx
+import { createStart } from '@tanstack/react-start'
+
+const start = createStart({
+  serverFns: {
+    fetch: customFetch
+  }
+})
+```
+
+### Advanced Example
+
+```tsx
+import { createClientRpc } from '@tanstack/react-start/client-rpc'
+
+const getUserFn = createClientRpc('get-user-abc123')
+
+// The function works like a normal async function
+const user = await getUserFn('user-id-456')
+console.log(user.name)
+
+// Access metadata
+console.log(getUserFn.url) // '/api/fn/get-user-abc123'
+console.log(getUserFn.serverFnMeta.id) // 'get-user-abc123'
+```
+
+### Type Safety
+
+<Warning>
+Client RPC functions are not type-safe by default since they're created with just an ID string. For type safety, use the standard `createServerFn` pattern which preserves types across the client-server boundary.
+</Warning>
+
+### Use Cases
+
+#### Code Splitting
+
+RPC functions enable automatic code splitting of server-only dependencies:
+
+```tsx
+// Server function with heavy dependencies
+import { createServerFn } from '@tanstack/react-start'
+import * as hugeLibrary from 'huge-library' // Only bundled for server
+
+export const processFn = createServerFn().handler(async () => {
+  return hugeLibrary.process()
+})
+
+// Client automatically gets lightweight RPC stub
+```
+
+#### Lazy Loading
+
+Dynamically import server functions when needed:
+
+```tsx
+const loadUserFn = async () => {
+  const { getUserFn } = await import('./user-functions')
+  return getUserFn
+}
+
+// Later
+const getUserFn = await loadUserFn()
+const user = await getUserFn()
+```
+
+#### Third-Party Integration
+
+Call server functions from libraries that don't know about TanStack Start:
+
+```tsx
+import { createClientRpc } from '@tanstack/react-start/client-rpc'
+
+// Create RPC for a known function ID
+const apiFn = createClientRpc('my-api-function')
+
+// Pass to third-party library
+thirdPartyLib.configure({ fetcher: apiFn })
+```
+
+### Comparison with createServerFn
+
+| Feature | createServerFn | createClientRpc |
+|---------|----------------|------------------|
+| Type Safety | Full type inference | No types (just ID) |
+| Build-time | Transforms to RPC | Manual RPC creation |
+| Use Case | Primary API | Advanced/manual use |
+| Middleware | Supported | Inherited from server |
+| Validation | Supported | Inherited from server |
+
+### Related
+
+- [Server Functions](/start/api/server-functions) - Primary way to create server functions
+- [Server RPC](/start/api/server-rpc) - Server-side RPC creation
+- [Middleware](/start/api/middleware) - Add middleware to server functions

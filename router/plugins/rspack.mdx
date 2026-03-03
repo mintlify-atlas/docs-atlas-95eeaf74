@@ -1,0 +1,401 @@
+---
+title: Rspack Plugin
+---
+
+# Rspack Plugin
+
+The TanStack Router Rspack plugin provides integration with Rspack, a fast Rust-based bundler. It enables route generation and code splitting for your router application.
+
+## Installation
+
+```bash
+npm install @tanstack/router-plugin @rsbuild/core
+```
+
+## Basic Usage
+
+Add the plugin to your Rspack configuration:
+
+```js
+import { defineConfig } from '@rsbuild/core'
+import TanStackRouterRspack from '@tanstack/router-plugin/rspack'
+
+export default defineConfig({
+  tools: {
+    rspack: {
+      plugins: [TanStackRouterRspack()],
+    },
+  },
+})
+```
+
+## Configuration
+
+The plugin accepts the same configuration options as other TanStack Router plugins:
+
+```js
+import { defineConfig } from '@rsbuild/core'
+import TanStackRouterRspack from '@tanstack/router-plugin/rspack'
+
+export default defineConfig({
+  tools: {
+    rspack: {
+      plugins: [
+        TanStackRouterRspack({
+          // Route generation options
+          routesDirectory: './src/routes',
+          generatedRouteTree: './src/routeTree.gen.ts',
+          
+          // Code splitting options
+          codeSplittingOptions: {
+            defaultBehavior: [
+              ['component'],
+              ['pendingComponent'],
+              ['errorComponent'],
+              ['notFoundComponent']
+            ],
+            addHmr: true
+          },
+          
+          // TypeScript options
+          disableTypes: false,
+          quoteStyle: 'single',
+          semicolons: false,
+        }),
+      ],
+    },
+  },
+})
+```
+
+## Configuration Options
+
+### Route Generation
+
+#### `routesDirectory`
+- **Type:** `string`
+- **Default:** `'./src/routes'`
+- The directory where your route files are located.
+
+#### `generatedRouteTree`
+- **Type:** `string`
+- **Default:** `'./src/routeTree.gen.ts'`
+- The file where the generated route tree will be written.
+
+#### `routeFilePrefix`
+- **Type:** `string`
+- **Optional**
+- A prefix to require for all route files.
+
+#### `routeFileIgnorePrefix`
+- **Type:** `string`
+- **Default:** `'-'`
+- Files starting with this prefix will be ignored during route generation.
+
+#### `routeFileIgnorePattern`
+- **Type:** `string`
+- **Optional**
+- A regex pattern to ignore specific route files.
+
+### Code Splitting
+
+#### `codeSplittingOptions`
+- **Type:** `CodeSplittingOptions`
+- **Optional**
+- Controls how routes are code-split.
+
+```js
+{
+  codeSplittingOptions: {
+    // Customize splitting per route
+    splitBehavior: ({ routeId }) => {
+      if (routeId.includes('lazy')) {
+        return [['component'], ['loader']]
+      }
+    },
+    
+    // Default behavior for all routes
+    defaultBehavior: [
+      ['component'],
+      ['pendingComponent'],
+      ['errorComponent', 'notFoundComponent']
+    ],
+    
+    // Delete specific nodes
+    deleteNodes: ['beforeLoad'],
+    
+    // Enable HMR
+    addHmr: true
+  }
+}
+```
+
+### TypeScript Options
+
+#### `disableTypes`
+- **Type:** `boolean`
+- **Default:** `false`
+- Disable TypeScript type generation.
+
+#### `quoteStyle`
+- **Type:** `'single' | 'double'`
+- **Default:** `'single'`
+- Quote style for generated code.
+
+#### `semicolons`
+- **Type:** `boolean`
+- **Default:** `false`
+- Whether to include semicolons in generated code.
+
+## Separate Plugins
+
+For more granular control, use individual plugins:
+
+### Route Generator Only
+
+```js
+import { TanStackRouterGeneratorRspack } from '@tanstack/router-plugin/rspack'
+
+export default defineConfig({
+  tools: {
+    rspack: {
+      plugins: [TanStackRouterGeneratorRspack()],
+    },
+  },
+})
+```
+
+### Code Splitter Only
+
+```js
+import { TanStackRouterCodeSplitterRspack } from '@tanstack/router-plugin/rspack'
+
+export default defineConfig({
+  tools: {
+    rspack: {
+      plugins: [TanStackRouterCodeSplitterRspack()],
+    },
+  },
+})
+```
+
+## How It Works
+
+The Rspack plugin is built using [unplugin](https://github.com/unjs/unplugin), which provides a unified plugin interface across build tools. The plugin:
+
+1. Watches your routes directory for changes
+2. Generates a typed route tree file
+3. Transforms route imports for code splitting
+4. Enables hot module replacement for route updates
+
+## Examples
+
+### Basic React Setup
+
+```js
+import { defineConfig } from '@rsbuild/core'
+import { pluginReact } from '@rsbuild/plugin-react'
+import TanStackRouterRspack from '@tanstack/router-plugin/rspack'
+
+export default defineConfig({
+  plugins: [pluginReact()],
+  tools: {
+    rspack: {
+      plugins: [
+        TanStackRouterRspack({
+          routesDirectory: './src/routes',
+          generatedRouteTree: './src/routeTree.gen.ts',
+        }),
+      ],
+    },
+  },
+})
+```
+
+### With Code Splitting
+
+```js
+import { defineConfig } from '@rsbuild/core'
+import { pluginReact } from '@rsbuild/plugin-react'
+import TanStackRouterRspack from '@tanstack/router-plugin/rspack'
+
+export default defineConfig({
+  plugins: [pluginReact()],
+  tools: {
+    rspack: {
+      plugins: [
+        TanStackRouterRspack({
+          routesDirectory: './src/routes',
+          codeSplittingOptions: {
+            defaultBehavior: [
+              ['component'],
+              ['loader'],
+              ['errorComponent']
+            ],
+          },
+        }),
+      ],
+    },
+  },
+  performance: {
+    chunkSplit: {
+      strategy: 'split-by-experience',
+    },
+  },
+})
+```
+
+### Development vs Production
+
+```js
+import { defineConfig } from '@rsbuild/core'
+import { pluginReact } from '@rsbuild/plugin-react'
+import TanStackRouterRspack from '@tanstack/router-plugin/rspack'
+
+const isDev = process.env.NODE_ENV === 'development'
+
+export default defineConfig({
+  plugins: [pluginReact()],
+  tools: {
+    rspack: {
+      plugins: [
+        TanStackRouterRspack({
+          routesDirectory: './src/routes',
+          codeSplittingOptions: {
+            addHmr: isDev, // Only enable HMR in development
+          },
+          disableLogging: !isDev,
+        }),
+      ],
+    },
+  },
+  mode: isDev ? 'development' : 'production',
+})
+```
+
+### Custom Routes Directory
+
+```js
+import { defineConfig } from '@rsbuild/core'
+import TanStackRouterRspack from '@tanstack/router-plugin/rspack'
+
+export default defineConfig({
+  tools: {
+    rspack: {
+      plugins: [
+        TanStackRouterRspack({
+          routesDirectory: './src/pages',
+          generatedRouteTree: './src/generated/routeTree.ts',
+          routeFilePrefix: 'page',
+          routeFileIgnorePrefix: '_',
+        }),
+      ],
+    },
+  },
+})
+```
+
+### Multiple Frameworks
+
+Rspack supports multiple frameworks. Here's an example with Solid:
+
+```js
+import { defineConfig } from '@rsbuild/core'
+import { pluginSolid } from '@rsbuild/plugin-solid'
+import TanStackRouterRspack from '@tanstack/router-plugin/rspack'
+
+export default defineConfig({
+  plugins: [pluginSolid()],
+  tools: {
+    rspack: {
+      plugins: [
+        TanStackRouterRspack({
+          target: 'solid',
+          routesDirectory: './src/routes',
+        }),
+      ],
+    },
+  },
+})
+```
+
+## TypeScript Configuration
+
+Ensure your `tsconfig.json` includes the generated route tree:
+
+```json
+{
+  "compilerOptions": {
+    "moduleResolution": "bundler",
+    "skipLibCheck": true
+  },
+  "include": [
+    "src/**/*",
+    "src/routeTree.gen.ts"
+  ]
+}
+```
+
+## Performance
+
+Rspack is a high-performance bundler written in Rust. The TanStack Router plugin integrates seamlessly to provide:
+
+- Fast route generation
+- Efficient code splitting
+- Quick HMR updates
+- Optimized production builds
+
+## Troubleshooting
+
+### Plugin Not Running
+
+Make sure the plugin is added to the `tools.rspack.plugins` array in your Rsbuild config.
+
+### Route Tree Not Updating
+
+In development mode, Rspack watches for file changes automatically. If routes aren't updating:
+
+1. Check that your `routesDirectory` is correct
+2. Verify that Rspack's watch mode is enabled
+3. Try restarting the development server
+
+### Build Errors
+
+If you encounter build errors:
+
+1. Ensure `@rsbuild/core` and `@tanstack/router-plugin` are installed
+2. Check that your route files have valid exports
+3. Verify TypeScript configuration is correct
+4. Check Rspack version compatibility
+
+### HMR Not Working
+
+If Hot Module Replacement isn't working:
+
+1. Ensure `codeSplittingOptions.addHmr` is enabled
+2. Check that you're in development mode
+3. Verify Rsbuild's dev server is running
+
+## Migration from Webpack
+
+If you're migrating from Webpack to Rspack:
+
+1. Replace `@tanstack/router-plugin/webpack` with `@tanstack/router-plugin/rspack`
+2. Update your config to use Rsbuild's format
+3. The plugin configuration remains the same
+
+```diff
+- import TanStackRouterWebpack from '@tanstack/router-plugin/webpack'
++ import TanStackRouterRspack from '@tanstack/router-plugin/rspack'
+
+- module.exports = {
+-   plugins: [TanStackRouterWebpack()],
+- }
++ export default defineConfig({
++   tools: {
++     rspack: {
++       plugins: [TanStackRouterRspack()],
++     },
++   },
++ })
+```

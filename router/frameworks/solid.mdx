@@ -1,0 +1,683 @@
+---
+title: Solid Router
+description: Framework-specific APIs, components, and primitives for SolidJS
+---
+
+# Solid Router
+
+TanStack Router provides first-class support for SolidJS with reactive primitives, components, and patterns designed specifically for Solid applications.
+
+## Installation
+
+```bash
+npm install @tanstack/solid-router
+```
+
+## Core Components
+
+### RouterProvider
+
+The top-level component that renders active route matches and provides the router to the Solid tree via context.
+
+```tsx
+import { render } from 'solid-js/web'
+import { RouterProvider, createRouter } from '@tanstack/solid-router'
+
+const router = createRouter({ routeTree })
+
+render(
+  () => <RouterProvider router={router} />,
+  document.getElementById('app')!
+)
+```
+
+### Link
+
+Reactive navigation component with preloading and active state support.
+
+```tsx
+import { Link } from '@tanstack/solid-router'
+
+function Navigation() {
+  return (
+    <Link
+      to="/posts/$postId"
+      params={{ postId: '123' }}
+      activeProps={{
+        class: 'font-bold',
+      }}
+      activeOptions={{ exact: true }}
+    >
+      View Post
+    </Link>
+  )
+}
+```
+
+**Note**: Use `class` instead of `className` (Solid convention).
+
+**Key Props:**
+- `to` - Type-safe destination path
+- `params` - Path parameters
+- `search` - Search parameters
+- `activeProps` - Props applied when link is active (returns a function in Solid)
+- `inactiveProps` - Props applied when link is inactive
+- `preload` - Controls preloading behavior (`false`, `'intent'`, `'viewport'`)
+- `disabled` - Disables navigation
+
+### Outlet
+
+Renders child route matches at the current level.
+
+```tsx
+import { Outlet } from '@tanstack/solid-router'
+
+function LayoutComponent() {
+  return (
+    <div>
+      <header>Header</header>
+      <main>
+        <Outlet />
+      </main>
+    </div>
+  )
+}
+```
+
+### ErrorComponent
+
+Default error boundary component that displays error details.
+
+```tsx
+import { ErrorComponent } from '@tanstack/solid-router'
+import type { ErrorComponentProps } from '@tanstack/solid-router'
+
+function CustomErrorComponent(props: ErrorComponentProps) {
+  return (
+    <div>
+      <h1>Error</h1>
+      <pre>{props.error.message}</pre>
+    </div>
+  )
+}
+```
+
+### Navigate
+
+Component-based navigation trigger.
+
+```tsx
+import { Navigate } from '@tanstack/solid-router'
+
+function RedirectComponent() {
+  return <Navigate to="/home" />
+}
+```
+
+## Solid Primitives
+
+### useRouter
+
+Access the router instance from any component.
+
+```tsx
+import { useRouter } from '@tanstack/solid-router'
+
+function MyComponent() {
+  const router = useRouter()
+  
+  const handleNavigate = () => {
+    router.navigate({ to: '/about' })
+  }
+  
+  return <button onClick={handleNavigate}>Go to About</button>
+}
+```
+
+### useNavigate
+
+Type-safe programmatic navigation.
+
+```tsx
+import { useNavigate } from '@tanstack/solid-router'
+
+function MyComponent() {
+  const navigate = useNavigate({ from: '/posts' })
+  
+  const handleClick = () => {
+    navigate({ to: '/posts/$postId', params: { postId: '123' } })
+  }
+  
+  return <button onClick={handleClick}>View Post</button>
+}
+```
+
+### useParams
+
+Access route path parameters reactively.
+
+```tsx
+import { useParams } from '@tanstack/solid-router'
+import { createEffect } from 'solid-js'
+
+function PostComponent() {
+  const params = useParams({ from: '/posts/$postId' })
+  
+  // params is reactive - access with params.postId
+  createEffect(() => {
+    console.log('Post ID changed:', params.postId)
+  })
+  
+  return <div>Post ID: {params.postId}</div>
+}
+```
+
+**Note**: In Solid, `useParams` returns a reactive proxy, not a signal.
+
+### useSearch
+
+Access route search parameters reactively.
+
+```tsx
+import { useSearch } from '@tanstack/solid-router'
+import { createEffect } from 'solid-js'
+
+function PostsComponent() {
+  const search = useSearch({ from: '/posts' })
+  
+  // search is reactive - access with search.filter
+  createEffect(() => {
+    console.log('Filter changed:', search.filter)
+  })
+  
+  return <div>Filter: {search.filter}</div>
+}
+```
+
+### useLoaderData
+
+Access data loaded by the route's loader function as a signal.
+
+```tsx
+import { useLoaderData } from '@tanstack/solid-router'
+
+function PostComponent() {
+  const post = useLoaderData({ from: '/posts/$postId' })
+  
+  // post is a Solid signal - access with post()
+  return (
+    <div>
+      <h1>{post().title}</h1>
+      <p>{post().body}</p>
+    </div>
+  )
+}
+```
+
+**Key Difference**: In Solid, `useLoaderData` returns a signal (function), so access data with `post()` instead of `post`.
+
+### useMatch
+
+Access the current route match with reactive properties.
+
+```tsx
+import { useMatch } from '@tanstack/solid-router'
+
+function MyComponent() {
+  const match = useMatch({ from: '/posts/$postId' })
+  
+  // match is reactive
+  return (
+    <div>
+      <p>Status: {match().status}</p>
+      <p>Post ID: {match().params.postId}</p>
+    </div>
+  )
+}
+```
+
+### useRouteContext
+
+Access route context provided by parent routes reactively.
+
+```tsx
+import { useRouteContext } from '@tanstack/solid-router'
+
+function MyComponent() {
+  const context = useRouteContext({ from: '/posts/$postId' })
+  
+  return <div>User: {context.user.name}</div>
+}
+```
+
+### useLocation
+
+Access the current location object reactively.
+
+```tsx
+import { useLocation } from '@tanstack/solid-router'
+import { createEffect } from 'solid-js'
+
+function MyComponent() {
+  const location = useLocation()
+  
+  createEffect(() => {
+    console.log('Location changed:', location.pathname)
+  })
+  
+  return (
+    <div>
+      <p>Pathname: {location.pathname}</p>
+      <p>Hash: {location.hash}</p>
+    </div>
+  )
+}
+```
+
+### useRouterState
+
+Access router state reactively with optional selector.
+
+```tsx
+import { useRouterState } from '@tanstack/solid-router'
+import { Show } from 'solid-js'
+
+function MyComponent() {
+  const isLoading = useRouterState({
+    select: (state) => state.isLoading,
+  })
+  
+  return (
+    <Show when={isLoading()} fallback={<div>Content</div>}>
+      <div>Loading...</div>
+    </Show>
+  )
+}
+```
+
+**Note**: Returns a signal, so access with `isLoading()`.
+
+### useMatchRoute
+
+Check if a specific route matches the current location.
+
+```tsx
+import { useMatchRoute } from '@tanstack/solid-router'
+import { Show } from 'solid-js'
+
+function MyComponent() {
+  const matchRoute = useMatchRoute()
+  const isPostsRoute = () => matchRoute({ to: '/posts' })
+  
+  return (
+    <Show when={isPostsRoute()} fallback={<div>Not on Posts Page</div>}>
+      <div>On Posts Page</div>
+    </Show>
+  )
+}
+```
+
+### useLinkProps
+
+Build anchor-like props for custom link components.
+
+```tsx
+import { useLinkProps } from '@tanstack/solid-router'
+
+function CustomLink(props) {
+  const linkProps = useLinkProps(props)
+  
+  return <a {...linkProps} class="custom-link" />
+}
+```
+
+### useBlocker
+
+Block navigation based on a condition (useful for unsaved changes).
+
+```tsx
+import { useBlocker } from '@tanstack/solid-router'
+import { createSignal } from 'solid-js'
+
+function FormComponent() {
+  const [hasUnsavedChanges, setHasUnsavedChanges] = createSignal(false)
+  
+  useBlocker({
+    condition: hasUnsavedChanges,
+    blockerFn: () => window.confirm('You have unsaved changes. Leave anyway?'),
+  })
+  
+  return <form>...</form>
+}
+```
+
+## Route API
+
+### RouteApi
+
+Route-specific API with pre-bound reactive primitives for a specific route ID.
+
+```tsx
+import { getRouteApi } from '@tanstack/solid-router'
+
+const postRoute = getRouteApi('/posts/$postId')
+
+function PostComponent() {
+  const params = postRoute.useParams()
+  const post = postRoute.useLoaderData()
+  const navigate = postRoute.useNavigate()
+  
+  return (
+    <div>
+      <h1>{post().title}</h1>
+      <postRoute.Link to="/posts">Back to Posts</postRoute.Link>
+    </div>
+  )
+}
+```
+
+## Creating Routes
+
+### Code-based Routes
+
+```tsx
+import { createRoute, createRootRoute, Outlet } from '@tanstack/solid-router'
+
+const rootRoute = createRootRoute({
+  component: () => (
+    <>
+      <nav>...</nav>
+      <Outlet />
+    </>
+  ),
+})
+
+const indexRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/',
+  component: () => <div>Welcome Home!</div>,
+})
+
+const postRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/posts/$postId',
+  loader: ({ params }) => fetchPost(params.postId),
+  component: PostComponent,
+})
+
+function PostComponent() {
+  const post = postRoute.useLoaderData()
+  // Access as signal: post()
+  return <div>{post().title}</div>
+}
+
+const routeTree = rootRoute.addChildren([indexRoute, postRoute])
+```
+
+### File-based Routes
+
+```tsx
+// src/routes/__root.tsx
+import { createRootRoute, Outlet } from '@tanstack/solid-router'
+
+export const Route = createRootRoute({
+  component: () => (
+    <>
+      <nav>...</nav>
+      <Outlet />
+    </>
+  ),
+})
+
+// src/routes/index.tsx
+import { createFileRoute } from '@tanstack/solid-router'
+
+export const Route = createFileRoute('/')({ 
+  component: () => <div>Welcome Home!</div>,
+})
+
+// src/routes/posts/$postId.tsx
+import { createFileRoute } from '@tanstack/solid-router'
+
+export const Route = createFileRoute('/posts/$postId')({
+  loader: ({ params }) => fetchPost(params.postId),
+  component: PostComponent,
+})
+
+function PostComponent() {
+  const post = Route.useLoaderData()
+  return <div>{post().title}</div>
+}
+```
+
+## SSR Support
+
+Solid Router includes specialized SSR utilities:
+
+```tsx
+// Server-side
+import { renderToString } from 'solid-js/web'
+import { createMemoryHistory } from '@tanstack/solid-router'
+
+const history = createMemoryHistory({
+  initialEntries: [request.url],
+})
+
+const router = createRouter({ 
+  routeTree,
+  history,
+})
+
+await router.load()
+
+const html = renderToString(() => <RouterProvider router={router} />)
+
+// Client-side
+import { hydrate } from 'solid-js/web'
+import { createBrowserHistory } from '@tanstack/solid-router'
+
+const history = createBrowserHistory()
+const router = createRouter({ routeTree, history })
+
+hydrate(
+  () => <RouterProvider router={router} />,
+  document.getElementById('root')!
+)
+```
+
+## Solid-Specific Features
+
+### Reactive Data Flow
+
+All router state is fully reactive and integrates with Solid's reactivity system:
+
+```tsx
+import { createEffect } from 'solid-js'
+import { useParams, useSearch } from '@tanstack/solid-router'
+
+function MyComponent() {
+  const params = useParams({ from: '/posts/$postId' })
+  const search = useSearch({ from: '/posts' })
+  
+  // Automatically tracks changes
+  createEffect(() => {
+    console.log('Params or search changed:', params.postId, search.filter)
+  })
+  
+  return <div>Post: {params.postId}</div>
+}
+```
+
+### Signal-based Loader Data
+
+Loader data is returned as Solid signals:
+
+```tsx
+import { For } from 'solid-js'
+import { useLoaderData } from '@tanstack/solid-router'
+
+function PostsComponent() {
+  const posts = useLoaderData({ from: '/posts' })
+  
+  return (
+    <For each={posts()}>
+      {(post) => <div>{post.title}</div>}
+    </For>
+  )
+}
+```
+
+### Suspense Integration
+
+Works seamlessly with Solid's Suspense:
+
+```tsx
+import { Suspense } from 'solid-js'
+
+const route = createRoute({
+  path: '/posts',
+  pendingComponent: () => <div>Loading posts...</div>,
+  component: PostsComponent,
+})
+```
+
+### Show/Match Components
+
+Use Solid's control flow components:
+
+```tsx
+import { Show, Match, Switch } from 'solid-js'
+import { useRouterState } from '@tanstack/solid-router'
+
+function MyComponent() {
+  const state = useRouterState()
+  
+  return (
+    <Switch>
+      <Match when={state.isLoading}>
+        <div>Loading...</div>
+      </Match>
+      <Match when={state.status === 'success'}>
+        <div>Content loaded!</div>
+      </Match>
+    </Switch>
+  )
+}
+```
+
+## Complete Example
+
+```tsx
+import { render } from 'solid-js/web'
+import { For } from 'solid-js'
+import {
+  RouterProvider,
+  createRouter,
+  createRootRoute,
+  createRoute,
+  Link,
+  Outlet,
+} from '@tanstack/solid-router'
+
+const rootRoute = createRootRoute({
+  component: () => (
+    <div>
+      <nav>
+        <Link to="/" activeProps={{ class: 'font-bold' }}>
+          Home
+        </Link>
+        <Link to="/posts" activeProps={{ class: 'font-bold' }}>
+          Posts
+        </Link>
+      </nav>
+      <Outlet />
+    </div>
+  ),
+})
+
+const indexRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/',
+  component: () => <h1>Welcome Home!</h1>,
+})
+
+const postsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/posts',
+  loader: () => fetch('/api/posts').then(r => r.json()),
+  component: PostsComponent,
+})
+
+function PostsComponent() {
+  const posts = postsRoute.useLoaderData()
+  
+  return (
+    <ul>
+      <For each={posts()}>
+        {(post) => (
+          <li>
+            <Link to="/posts/$postId" params={{ postId: post.id }}>
+              {post.title}
+            </Link>
+          </li>
+        )}
+      </For>
+    </ul>
+  )
+}
+
+const routeTree = rootRoute.addChildren([indexRoute, postsRoute])
+const router = createRouter({ routeTree })
+
+declare module '@tanstack/solid-router' {
+  interface Register {
+    router: typeof router
+  }
+}
+
+const rootElement = document.getElementById('root')!
+render(() => <RouterProvider router={router} />, rootElement)
+```
+
+## Best Practices
+
+1. **Type Safety**: Always register your router type:
+   ```tsx
+   declare module '@tanstack/solid-router' {
+     interface Register {
+       router: typeof router
+     }
+   }
+   ```
+
+2. **Use Signals**: Remember that `useLoaderData` and `useRouterState` return signals:
+   ```tsx
+   const data = useLoaderData({ from: '/posts' })
+   return <div>{data()}</div> // Call as function
+   ```
+
+3. **Reactive Params**: `useParams` and `useSearch` return reactive proxies:
+   ```tsx
+   const params = useParams({ from: '/posts/$postId' })
+   return <div>{params.postId}</div> // Access directly, automatically reactive
+   ```
+
+4. **Control Flow**: Use Solid's control flow components:
+   ```tsx
+   <Show when={isLoading()} fallback={<Content />}>
+     <Spinner />
+   </Show>
+   ```
+
+5. **Class vs ClassName**: Use `class` (Solid convention) instead of `className`:
+   ```tsx
+   <Link to="/" activeProps={{ class: 'active' }}>Home</Link>
+   ```
+
+## Key Differences from React Router
+
+- **Signals**: `useLoaderData` and `useRouterState` return signals, not plain values
+- **Reactive Proxies**: `useParams` and `useSearch` return reactive proxies
+- **Class Attribute**: Use `class` instead of `className`
+- **Control Flow**: Use `Show`, `For`, `Switch`, `Match` instead of `&&`, `map`, ternaries
+- **No Hooks Rules**: Solid doesn't have hook rules - use primitives anywhere

@@ -1,0 +1,433 @@
+---
+title: Search Parameters
+description: Type-safe URL search parameter management in TanStack Router
+---
+
+TanStack Router treats search parameters (query strings) as first-class citizens, providing type-safe parsing, validation, and updates.
+
+## Defining Search Params
+
+Use `validateSearch` to define and validate search parameters:
+
+```tsx
+const postsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/posts',
+  validateSearch: (search) => ({
+    page: Number(search.page) || 1,
+    filter: (search.filter as string) || 'all',
+    sort: search.sort as 'date' | 'title' | undefined,
+  }),
+})
+```
+
+## Using Search Params
+
+Access search params in components with `useSearch`:
+
+```tsx
+import { useSearch } from '@tanstack/react-router'
+
+function PostsList() {
+  const { page, filter, sort } = useSearch({ from: '/posts' })
+  
+  return (
+    <div>
+      <h1>Posts - Page {page}</h1>
+      <p>Filter: {filter}</p>
+      {sort && <p>Sorted by: {sort}</p>}
+    </div>
+  )
+}
+```
+
+### Strict Mode
+
+Enable strict mode for route-specific types:
+
+```tsx
+// Type-safe: Only search params from '/posts' route
+const search = useSearch({ from: '/posts', strict: true })
+
+// Loose: Union of all search params from all routes
+const search = useSearch({ strict: false })
+```
+
+## Validation with Validators
+
+Use validation libraries like Zod for schema validation:
+
+```tsx
+import { z } from 'zod'
+import { zodValidator } from '@tanstack/zod-adapter'
+
+const searchSchema = z.object({
+  page: z.number().min(1).default(1),
+  filter: z.enum(['all', 'published', 'draft']).default('all'),
+  tags: z.array(z.string()).optional(),
+})
+
+const postsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/posts',
+  validateSearch: zodValidator(searchSchema),
+})
+```
+
+Supported validators:
+- **Zod**: `@tanstack/zod-adapter`
+- **Valibot**: `@tanstack/valibot-adapter`
+- **ArkType**: `@tanstack/arktype-adapter`
+
+## Updating Search Params
+
+Update search params using `Link` or `navigate`:
+
+### Using Links
+
+```tsx
+// Set search params
+<Link to="/posts" search={{ page: 2, filter: 'published' }}>
+  Page 2
+</Link>
+
+// Update existing search params
+<Link to="." search={(prev) => ({ ...prev, page: prev.page + 1 })}>
+  Next Page
+</Link>
+
+// Clear specific params
+<Link to="." search={(prev) => ({ ...prev, filter: undefined })}>
+  Clear Filter
+</Link>
+```
+
+### Using Navigate
+
+```tsx
+import { useNavigate } from '@tanstack/react-router'
+
+function FilterComponent() {
+  const navigate = useNavigate()
+  
+  const handleFilterChange = (filter: string) => {
+    navigate({
+      to: '.',
+      search: (prev) => ({ ...prev, filter }),
+    })
+  }
+  
+  return (
+    <select onChange={(e) => handleFilterChange(e.target.value)}>
+      <option value="all">All</option>
+      <option value="published">Published</option>
+      <option value="draft">Draft</option>
+    </select>
+  )
+}
+```
+
+## Search Param Serialization
+
+By default, TanStack Router uses JSON for complex values:
+
+```tsx
+// URL: /posts?tags=["react","typescript"]
+const search = { tags: ['react', 'typescript'] }
+```
+
+### Custom Serialization
+
+Provide custom serializers for search parameters:
+
+```tsx
+import { parseSearchWith, stringifySearchWith } from '@tanstack/react-router'
+
+const router = createRouter({
+  routeTree,
+  parseSearch: parseSearchWith((str) => JSON.parse(str)),
+  stringifySearch: stringifySearchWith(JSON.stringify, JSON.parse),
+})
+```
+
+### QSS Format
+
+The router uses `qss` for encoding/decoding search strings:
+
+```tsx
+import { encode, decode } from '@tanstack/router-core'
+
+// Encode object to search string
+const searchStr = encode({ page: 1, filter: 'all' })
+// Result: "page=1&filter=all"
+
+// Decode search string to object
+const search = decode('page=1&filter=all')
+// Result: { page: '1', filter: 'all' }
+```
+
+## Search Middleware
+
+Transform search params before they're used:
+
+```tsx
+const postsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/posts',
+  validateSearch: (search) => ({
+    page: Number(search.page) || 1,
+    filter: search.filter as string,
+  }),
+  search: {
+    middlewares: [
+      // Normalize filter values
+      ({ search, next }) => {
+        const normalized = {
+          ...search,
+          filter: search.filter?.toLowerCase(),
+        }
+        return next(normalized)
+      },
+      // Add defaults
+      ({ search, next }) => {
+        const withDefaults = {
+          sort: 'date',
+          ...search,
+        }
+        return next(withDefaults)
+      },
+    ],
+  },
+})
+```
+
+## Parent Search Params
+
+Child routes inherit search params from parents:
+
+```tsx
+const layoutRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  id: 'layout',
+  validateSearch: (search) => ({
+    theme: search.theme as 'light' | 'dark' | undefined,
+  }),
+})
+
+const postsRoute = createRoute({
+  getParentRoute: () => layoutRoute,
+  path: '/posts',
+  validateSearch: (search) => ({
+    // Inherits 'theme' from parent
+    ...search,
+    page: Number(search.page) || 1,
+  }),
+})
+```
+
+Access in component:
+
+```tsx
+function PostsList() {
+  const search = useSearch({ from: '/posts' })
+  
+  // Both 'theme' and 'page' are available
+  console.log(search.theme, search.page)
+}
+```
+
+## Search Schema Types
+
+Define TypeScript types for search params:
+
+```tsx
+type PostsSearch = {
+  page: number
+  filter: 'all' | 'published' | 'draft'
+  tags?: string[]
+  sort?: 'date' | 'title' | 'author'
+}
+
+const postsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/posts',
+  validateSearch: (search): PostsSearch => ({
+    page: Number(search.page) || 1,
+    filter: (search.filter as PostsSearch['filter']) || 'all',
+    tags: search.tags as string[] | undefined,
+    sort: search.sort as PostsSearch['sort'],
+  }),
+})
+```
+
+## Strict Search Mode
+
+Enforce strict search parameter validation:
+
+```tsx
+const router = createRouter({
+  routeTree,
+  search: {
+    strict: true, // Unknown search params cause errors
+  },
+})
+```
+
+With strict mode:
+- Unknown search params are removed
+- Only params defined in `validateSearch` are allowed
+- Helps catch typos and invalid params
+
+## Preserving Search Params
+
+Maintain search params across navigations:
+
+```tsx
+// Keep all current search params
+<Link to="/posts" search={(prev) => prev}>
+  Posts
+</Link>
+
+// Keep specific params
+<Link to="/posts" search={(prev) => ({ page: prev.page })}>
+  Posts (preserve page)
+</Link>
+
+// Merge with new params
+<Link to="/posts" search={(prev) => ({ ...prev, filter: 'published' })}>
+  Published Posts
+</Link>
+```
+
+## Search Params in Loaders
+
+Access search params in loader functions:
+
+```tsx
+const postsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/posts',
+  validateSearch: (search) => ({
+    page: Number(search.page) || 1,
+    filter: search.filter as string,
+  }),
+  loaderDeps: ({ search }) => ({
+    page: search.page,
+    filter: search.filter,
+  }),
+  loader: async ({ deps }) => {
+    const posts = await fetchPosts({
+      page: deps.page,
+      filter: deps.filter,
+    })
+    return { posts }
+  },
+})
+```
+
+The `loaderDeps` function makes search params part of the cache key, so data refetches when params change.
+
+## URL Building
+
+Build URLs with search params:
+
+```tsx
+import { useRouter } from '@tanstack/react-router'
+
+function Component() {
+  const router = useRouter()
+  
+  const url = router.buildLocation({
+    to: '/posts',
+    search: { page: 2, filter: 'published' },
+  })
+  
+  console.log(url.href)
+  // "/posts?page=2&filter=published"
+}
+```
+
+## Common Patterns
+
+### Pagination
+
+```tsx
+function Pagination() {
+  const { page } = useSearch({ from: '/posts' })
+  
+  return (
+    <div>
+      <Link to="." search={(prev) => ({ ...prev, page: page - 1 })}>
+        Previous
+      </Link>
+      <span>Page {page}</span>
+      <Link to="." search={(prev) => ({ ...prev, page: page + 1 })}>
+        Next
+      </Link>
+    </div>
+  )
+}
+```
+
+### Filtering
+
+```tsx
+function FilterBar() {
+  const navigate = useNavigate()
+  const { filter } = useSearch({ from: '/posts' })
+  
+  const handleFilterChange = (newFilter: string) => {
+    navigate({
+      to: '.',
+      search: (prev) => ({ ...prev, filter: newFilter, page: 1 }),
+    })
+  }
+  
+  return (
+    <select value={filter} onChange={(e) => handleFilterChange(e.target.value)}>
+      <option value="all">All Posts</option>
+      <option value="published">Published</option>
+      <option value="draft">Drafts</option>
+    </select>
+  )
+}
+```
+
+### Sorting
+
+```tsx
+function SortControls() {
+  const { sort } = useSearch({ from: '/posts' })
+  
+  return (
+    <div>
+      <Link to="." search={(prev) => ({ ...prev, sort: 'date' })}>
+        Sort by Date
+      </Link>
+      <Link to="." search={(prev) => ({ ...prev, sort: 'title' })}>
+        Sort by Title
+      </Link>
+      <Link to="." search={(prev) => ({ ...prev, sort: undefined })}>
+        Default Sort
+      </Link>
+    </div>
+  )
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Path Params" icon="brackets-curly" href="./path-params">
+    Learn about path parameter handling
+  </Card>
+  <Card title="Loaders" icon="download" href="./loaders">
+    Use search params in data loading
+  </Card>
+  <Card title="Type Safety" icon="shield-check" href="./type-safety">
+    Configure end-to-end type safety
+  </Card>
+  <Card title="Navigation" icon="arrow-pointer" href="./navigation">
+    Navigate with search parameters
+  </Card>
+</CardGroup>

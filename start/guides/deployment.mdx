@@ -1,0 +1,685 @@
+---
+title: Deployment
+---
+
+# Deployment
+
+TanStack Start applications can be deployed to various platforms including Cloudflare Workers, Vercel, Netlify, and traditional Node.js servers. This guide covers deployment strategies for different platforms.
+
+## Build Process
+
+Before deployment, build your application for production:
+
+```bash
+npm run build
+```
+
+This creates optimized bundles for both client and server in the `dist` directory.
+
+## Cloudflare Workers
+
+Deploy to Cloudflare's edge network for global, low-latency serving.
+
+<Steps>
+
+<Step>
+
+### Configure Wrangler
+
+Create a `wrangler.jsonc` file:
+
+```json
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "my-tanstack-app",
+  "compatibility_date": "2025-09-24",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "@tanstack/react-start/server-entry",
+  "vars": {
+    "MY_VAR": "production_value"
+  }
+}
+```
+
+</Step>
+
+<Step>
+
+### Add Wrangler Scripts
+
+Update your `package.json`:
+
+```json
+{
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "deploy": "wrangler deploy",
+    "preview": "wrangler dev"
+  }
+}
+```
+
+</Step>
+
+<Step>
+
+### Deploy
+
+Deploy to Cloudflare:
+
+```bash
+npm run deploy
+```
+
+</Step>
+
+</Steps>
+
+### Environment Variables
+
+Set environment variables in Wrangler:
+
+```json
+{
+  "vars": {
+    "DATABASE_URL": "your-database-url",
+    "API_KEY": "your-api-key"
+  }
+}
+```
+
+For secrets (not committed to source control):
+
+```bash
+wrangler secret put DATABASE_URL
+wrangler secret put API_KEY
+```
+
+### Cloudflare Bindings
+
+Access Cloudflare services (KV, D1, R2) in your app:
+
+```tsx
+import { createServerFn } from '@tanstack/react-start'
+
+const getData = createServerFn().handler(async ({ context }) => {
+  // Access KV namespace
+  const value = await context.cloudflare.env.MY_KV.get('key')
+  
+  // Access D1 database
+  const results = await context.cloudflare.env.DB
+    .prepare('SELECT * FROM users')
+    .all()
+  
+  return { value, results }
+})
+```
+
+Configure bindings in `wrangler.jsonc`:
+
+```json
+{
+  "kv_namespaces": [
+    { "binding": "MY_KV", "id": "your-kv-id" }
+  ],
+  "d1_databases": [
+    { "binding": "DB", "database_id": "your-d1-id" }
+  ]
+}
+```
+
+## Vercel
+
+Deploy to Vercel's edge and serverless infrastructure.
+
+<Steps>
+
+<Step>
+
+### Install Vercel CLI
+
+```bash
+npm i -g vercel
+```
+
+</Step>
+
+<Step>
+
+### Configure Project
+
+Create `vercel.json` (optional):
+
+```json
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist/client",
+  "framework": null,
+  "env": {
+    "NODE_ENV": "production"
+  }
+}
+```
+
+</Step>
+
+<Step>
+
+### Deploy
+
+Deploy to Vercel:
+
+```bash
+vercel
+```
+
+For production:
+
+```bash
+vercel --prod
+```
+
+</Step>
+
+</Steps>
+
+### Environment Variables
+
+Set environment variables in Vercel Dashboard or CLI:
+
+```bash
+vercel env add DATABASE_URL
+vercel env add API_KEY
+```
+
+### Edge Functions
+
+Optimize for edge deployment:
+
+```tsx
+// src/server.ts
+import { createStartHandler, defaultStreamHandler } from '@tanstack/react-start/server'
+
+export default createStartHandler({
+  handler: defaultStreamHandler
+})
+
+export const config = {
+  runtime: 'edge'
+}
+```
+
+## Netlify
+
+Deploy to Netlify's edge and serverless platform.
+
+<Steps>
+
+<Step>
+
+### Install Netlify CLI
+
+```bash
+npm i -g netlify-cli
+```
+
+</Step>
+
+<Step>
+
+### Configure Project
+
+Create `netlify.toml`:
+
+```toml
+[build]
+  command = "npm run build"
+  publish = "dist/client"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+[[redirects]]
+  from = "/*"
+  to = "/.netlify/functions/server"
+  status = 200
+```
+
+</Step>
+
+<Step>
+
+### Deploy
+
+Deploy to Netlify:
+
+```bash
+netlify deploy
+```
+
+For production:
+
+```bash
+netlify deploy --prod
+```
+
+</Step>
+
+</Steps>
+
+### Environment Variables
+
+Set environment variables in Netlify Dashboard or CLI:
+
+```bash
+netlify env:set DATABASE_URL "your-database-url"
+netlify env:set API_KEY "your-api-key"
+```
+
+## Node.js Server
+
+Deploy to any Node.js hosting provider (AWS, DigitalOcean, Railway, etc.).
+
+<Steps>
+
+<Step>
+
+### Create Server Entry
+
+Create a production server file:
+
+```tsx
+// server.js
+import { createServer } from 'http'
+import handler from './dist/server/server.js'
+
+const PORT = process.env.PORT || 3000
+
+const server = createServer(async (req, res) => {
+  const request = new Request(
+    `http://${req.headers.host}${req.url}`,
+    {
+      method: req.method,
+      headers: req.headers
+    }
+  )
+  
+  const response = await handler(request)
+  
+  res.writeHead(response.status, Object.fromEntries(response.headers))
+  
+  if (response.body) {
+    const reader = response.body.getReader()
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      res.write(value)
+    }
+  }
+  
+  res.end()
+})
+
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`)
+})
+```
+
+</Step>
+
+<Step>
+
+### Build and Start
+
+```bash
+npm run build
+node server.js
+```
+
+</Step>
+
+</Steps>
+
+### Docker Deployment
+
+Create a `Dockerfile`:
+
+```dockerfile
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install dependencies
+COPY package*.json ./
+RUN npm ci --production
+
+# Copy built application
+COPY dist ./dist
+COPY server.js ./
+
+# Expose port
+EXPOSE 3000
+
+# Start server
+CMD ["node", "server.js"]
+```
+
+Build and run:
+
+```bash
+docker build -t my-tanstack-app .
+docker run -p 3000:3000 my-tanstack-app
+```
+
+## Static Export
+
+Generate a static site for deployment to static hosts (GitHub Pages, S3, etc.).
+
+<Steps>
+
+<Step>
+
+### Configure Static Routes
+
+Define routes to prerender:
+
+```tsx
+// vite.config.ts
+import { defineConfig } from 'vite'
+import { TanStackStartPlugin } from '@tanstack/react-start/plugin'
+
+export default defineConfig({
+  plugins: [
+    TanStackStartPlugin({
+      prerender: {
+        routes: ['/', '/about', '/blog', '/blog/post-1']
+      }
+    })
+  ]
+})
+```
+
+</Step>
+
+<Step>
+
+### Build Static Site
+
+```bash
+npm run build
+```
+
+Generated files are in `dist/client`.
+
+</Step>
+
+<Step>
+
+### Deploy Static Files
+
+Deploy `dist/client` to any static host:
+
+```bash
+# GitHub Pages
+gh-pages -d dist/client
+
+# AWS S3
+aws s3 sync dist/client s3://my-bucket --delete
+
+# Netlify
+netlify deploy --dir=dist/client --prod
+```
+
+</Step>
+
+</Steps>
+
+### Dynamic Route Prerendering
+
+Prerender dynamic routes:
+
+```tsx
+import { defineConfig } from 'vite'
+import { TanStackStartPlugin } from '@tanstack/react-start/plugin'
+
+export default defineConfig({
+  plugins: [
+    TanStackStartPlugin({
+      prerender: {
+        routes: async () => {
+          // Fetch dynamic routes at build time
+          const posts = await fetchAllPosts()
+          return [
+            '/',
+            '/about',
+            ...posts.map(post => `/blog/${post.slug}`)
+          ]
+        }
+      }
+    })
+  ]
+})
+```
+
+## CDN Configuration
+
+Optimize asset delivery with CDN URL rewriting:
+
+```tsx
+// src/server.ts
+import { createStartHandler, defaultStreamHandler } from '@tanstack/react-start/server'
+
+export default createStartHandler({
+  handler: defaultStreamHandler,
+  transformAssetUrls: 'https://cdn.example.com'
+})
+```
+
+### Per-Request CDN URLs
+
+Generate CDN URLs per request:
+
+```tsx
+export default createStartHandler({
+  handler: defaultStreamHandler,
+  transformAssetUrls: {
+    transform: ({ url, type }) => {
+      const region = getRequest().headers.get('x-region') || 'us'
+      return `https://cdn-${region}.example.com${url}`
+    },
+    cache: false // Transform per-request
+  }
+})
+```
+
+## Environment-Specific Configuration
+
+Handle different environments:
+
+```tsx
+// src/config.ts
+const config = {
+  development: {
+    apiUrl: 'http://localhost:3001',
+    cdnUrl: ''
+  },
+  production: {
+    apiUrl: 'https://api.example.com',
+    cdnUrl: 'https://cdn.example.com'
+  }
+}
+
+export const getConfig = () => {
+  const env = process.env.NODE_ENV || 'development'
+  return config[env]
+}
+```
+
+Use in server functions:
+
+```tsx
+import { createServerFn } from '@tanstack/react-start'
+import { getConfig } from './config'
+
+const fetchData = createServerFn().handler(async () => {
+  const { apiUrl } = getConfig()
+  const res = await fetch(`${apiUrl}/data`)
+  return res.json()
+})
+```
+
+## Health Checks
+
+Implement health check endpoints:
+
+```tsx
+import { createFileRoute } from '@tanstack/react-router'
+
+export const Route = createFileRoute('/api/health')(
+  {
+    server: {
+      handlers: {
+        GET: async () => {
+          // Check database
+          const dbHealthy = await checkDatabase()
+          
+          // Check external services
+          const servicesHealthy = await checkServices()
+          
+          const healthy = dbHealthy && servicesHealthy
+          
+          return Response.json(
+            {
+              status: healthy ? 'healthy' : 'unhealthy',
+              timestamp: new Date().toISOString(),
+              checks: {
+                database: dbHealthy,
+                services: servicesHealthy
+              }
+            },
+            { status: healthy ? 200 : 503 }
+          )
+        }
+      }
+    }
+  }
+)
+```
+
+## Monitoring and Logging
+
+Implement request logging:
+
+```tsx
+import { createMiddleware } from '@tanstack/react-start'
+
+const loggingMiddleware = createMiddleware().server(async ({ next, request, pathname }) => {
+  const start = Date.now()
+  
+  try {
+    const result = await next()
+    
+    const duration = Date.now() - start
+    console.log(JSON.stringify({
+      timestamp: new Date().toISOString(),
+      method: request.method,
+      pathname,
+      duration,
+      status: result.response.status
+    }))
+    
+    return result
+  } catch (error) {
+    const duration = Date.now() - start
+    console.error(JSON.stringify({
+      timestamp: new Date().toISOString(),
+      method: request.method,
+      pathname,
+      duration,
+      error: error.message
+    }))
+    
+    throw error
+  }
+})
+```
+
+## Performance Optimization
+
+### Enable Compression
+
+Compress responses:
+
+```tsx
+import { createMiddleware } from '@tanstack/react-start'
+import { gzip } from 'zlib'
+import { promisify } from 'util'
+
+const gzipAsync = promisify(gzip)
+
+const compressionMiddleware = createMiddleware().server(async ({ next, request }) => {
+  const result = await next()
+  
+  const acceptEncoding = request.headers.get('accept-encoding') || ''
+  
+  if (acceptEncoding.includes('gzip')) {
+    const body = await result.response.text()
+    const compressed = await gzipAsync(body)
+    
+    return {
+      ...result,
+      response: new Response(compressed, {
+        status: result.response.status,
+        headers: {
+          ...Object.fromEntries(result.response.headers),
+          'Content-Encoding': 'gzip'
+        }
+      })
+    }
+  }
+  
+  return result
+})
+```
+
+### Cache Static Assets
+
+Set cache headers for assets:
+
+```tsx
+import { createMiddleware } from '@tanstack/react-start'
+
+const cacheMiddleware = createMiddleware().server(async ({ next, pathname }) => {
+  const result = await next()
+  
+  // Cache static assets for 1 year
+  if (pathname.startsWith('/assets/')) {
+    result.response.headers.set(
+      'Cache-Control',
+      'public, max-age=31536000, immutable'
+    )
+  }
+  
+  return result
+})
+```
+
+## Best Practices
+
+- **Use environment variables**: Never hardcode secrets or configuration
+- **Enable compression**: Compress responses to reduce bandwidth
+- **Set cache headers**: Cache static assets aggressively
+- **Implement health checks**: Monitor application health
+- **Log strategically**: Log errors and important events
+- **Monitor performance**: Track response times and errors
+- **Use CDNs**: Serve static assets from edge locations
+- **Optimize images**: Use appropriate formats and sizes
+- **Enable security headers**: Set CSP, HSTS, and other security headers
+- **Test deployments**: Always test in staging before production
+
+## Learn More
+
+- [Server Functions](/start/guides/server-functions)
+- [Middleware](/start/guides/middleware)
+- [Static Generation](/start/guides/static-generation)

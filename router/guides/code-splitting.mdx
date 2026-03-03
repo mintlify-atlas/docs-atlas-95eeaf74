@@ -1,0 +1,331 @@
+---
+title: Code splitting
+description: Optimize bundle size with lazy-loaded routes and components
+---
+
+Code splitting breaks your application into smaller chunks that are loaded on demand, reducing initial bundle size and improving load times.
+
+## Lazy routes
+
+Split route components using `createLazyRoute`:
+
+```tsx src/routes/posts/$postId.tsx
+import { createFileRoute } from '@tanstack/react-router'
+import { fetchPost } from '@/api'
+
+// Keep loader in main bundle (runs on server)
+export const Route = createFileRoute('/posts/$postId')({
+  loader: async ({ params }) => {
+    return await fetchPost(params.postId)
+  },
+}).lazy(() => import('./posts.$postId.lazy'))
+```
+
+```tsx src/routes/posts/$postId.lazy.tsx
+import { createLazyFileRoute } from '@tanstack/react-router'
+
+// Component code is lazy-loaded
+export const Route = createLazyFileRoute('/posts/$postId')({
+  component: PostComponent,
+})
+
+function PostComponent() {
+  const post = Route.useLoaderData()
+  return (
+    <article>
+      <h1>{post.title}</h1>
+      <p>{post.content}</p>
+    </article>
+  )
+}
+```
+
+## Code-based lazy routes
+
+For code-based routing:
+
+```tsx
+import { createRoute } from '@tanstack/react-router'
+
+const postsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/posts',
+  loader: async () => await fetchPosts(),
+}).lazy(() => import('./routes/posts.lazy').then((m) => m.Route))
+```
+
+```tsx src/routes/posts.lazy.tsx
+import { createLazyRoute } from '@tanstack/react-router'
+
+export const Route = createLazyRoute('/posts')({
+  component: PostsList,
+  errorComponent: PostsError,
+  pendingComponent: PostsLoading,
+})
+
+function PostsList() {
+  const posts = Route.useLoaderData()
+  return <div>{/* posts list */}</div>
+}
+```
+
+## Lazy route components
+
+Lazy-load just the component:
+
+```tsx
+import { lazyRouteComponent } from '@tanstack/react-router'
+
+export const Route = createFileRoute('/dashboard')({
+  component: lazyRouteComponent(() => import('./Dashboard')),
+})
+```
+
+```tsx src/routes/Dashboard.tsx
+export default function Dashboard() {
+  return <div>Dashboard</div>
+}
+```
+
+## What to split
+
+### Critical loader logic
+
+Keep loaders in the main bundle for SSR:
+
+```tsx
+// ✅ Good - Loader in main bundle
+export const Route = createFileRoute('/posts')({
+  loader: async () => await fetchPosts(),
+}).lazy(() => import('./posts.lazy'))
+```
+
+```tsx
+// ❌ Bad - Loader in lazy bundle (breaks SSR)
+export const Route = createLazyFileRoute('/posts')({
+  loader: async () => await fetchPosts(),
+  component: Posts,
+})
+```
+
+### Heavy components
+
+Split large component libraries:
+
+```tsx
+import { lazyRouteComponent } from '@tanstack/react-router'
+
+export const Route = createFileRoute('/editor')({
+  // Monaco Editor is large - lazy load it
+  component: lazyRouteComponent(() => import('./CodeEditor')),
+})
+```
+
+### Route groups
+
+Split entire route sections:
+
+```tsx
+// Admin routes are lazy-loaded as a group
+const adminRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/admin',
+}).lazy(() => import('./admin/routes'))
+```
+
+## Preloading strategies
+
+Control when chunks are loaded:
+
+```tsx
+import { Link } from '@tanstack/react-router'
+
+function Navigation() {
+  return (
+    <nav>
+      {/* Preload on hover */}
+      <Link to="/dashboard" preload="intent">
+        Dashboard
+      </Link>
+      
+      {/* Preload when visible */}
+      <Link to="/reports" preload="viewport">
+        Reports
+      </Link>
+      
+      {/* Preload immediately */}
+      <Link to="/settings" preload="render">
+        Settings
+      </Link>
+      
+      {/* Don't preload */}
+      <Link to="/archive" preload={false}>
+        Archive
+      </Link>
+    </nav>
+  )
+}
+```
+
+## Manual preloading
+
+Preload routes programmatically:
+
+```tsx
+import { useRouter } from '@tanstack/react-router'
+
+function App() {
+  const router = useRouter()
+  
+  React.useEffect(() => {
+    // Preload after initial render
+    setTimeout(() => {
+      router.preloadRoute({
+        to: '/dashboard',
+      })
+    }, 1000)
+  }, [])
+  
+  return <RouterProvider router={router} />
+}
+```
+
+## Suspense boundaries
+
+Control loading states during code splitting:
+
+```tsx
+import { Suspense } from 'react'
+import { Outlet } from '@tanstack/react-router'
+
+function Layout() {
+  return (
+    <div>
+      <Header />
+      <Suspense fallback={<PageLoader />}>
+        <Outlet />
+      </Suspense>
+    </div>
+  )
+}
+```
+
+## Pending components
+
+Show loading state while lazy chunks load:
+
+```tsx
+export const Route = createFileRoute('/heavy-page')({
+  component: lazyRouteComponent(() => import('./HeavyPage')),
+  pendingComponent: () => (
+    <div className="loading">
+      <Spinner />
+      <p>Loading page...</p>
+    </div>
+  ),
+})
+```
+
+## Bundle analysis
+
+Analyze bundle sizes to find optimization opportunities:
+
+```typescript vite.config.ts
+import { defineConfig } from 'vite'
+import { visualizer } from 'rollup-plugin-visualizer'
+
+export default defineConfig({
+  plugins: [
+    visualizer({
+      open: true,
+      gzipSize: true,
+      brotliSize: true,
+    }),
+  ],
+})
+```
+
+## Route-level splitting
+
+Ensure each route is in its own chunk:
+
+```typescript vite.config.ts
+export default defineConfig({
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          // Split routes into separate chunks
+          if (id.includes('src/routes/')) {
+            const route = id.split('src/routes/')[1].split('/')[0]
+            return `route-${route}`
+          }
+        },
+      },
+    },
+  },
+})
+```
+
+## Dynamic imports
+
+Lazy-load utilities and helpers:
+
+```tsx
+function DataExport() {
+  const handleExport = async () => {
+    // Only load export library when needed
+    const { exportToCSV } = await import('@/utils/export')
+    exportToCSV(data)
+  }
+  
+  return <button onClick={handleExport}>Export</button>
+}
+```
+
+## Best practices
+
+<Accordion title="Keep loaders in main bundle">
+Loaders should not be lazy-loaded - they need to run on the server.
+</Accordion>
+
+<Accordion title="Split per route">
+Each route should be its own chunk for optimal caching.
+</Accordion>
+
+<Accordion title="Preload critical routes">
+Use preload="intent" or preload="viewport" for frequently accessed routes.
+</Accordion>
+
+<Accordion title="Use Suspense boundaries">
+Wrap lazy routes in Suspense to show loading states.
+</Accordion>
+
+<Accordion title="Analyze your bundles">
+Regularly check bundle sizes and split large chunks.
+</Accordion>
+
+## Performance tips
+
+<Info>
+**Target bundle size**: Aim for chunks under 200KB. Larger chunks should be split further.
+</Info>
+
+<Tip>
+**Prefetch on idle**: Use `requestIdleCallback` to preload routes during browser idle time.
+</Tip>
+
+<Warning>
+Over-splitting can hurt performance. Balance chunk count with chunk size.
+</Warning>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="File-based routing" icon="folder-tree" href="/router/guides/file-based-routing">
+    Learn automatic route splitting
+  </Card>
+  <Card title="Vite plugin" icon="puzzle-piece" href="/router/plugins/vite">
+    Configure code splitting
+  </Card>
+</CardGroup>

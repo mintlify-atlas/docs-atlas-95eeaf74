@@ -1,0 +1,327 @@
+---
+title: Data loading
+description: Load and manage data for your routes with loaders and beforeLoad hooks
+---
+
+TanStack Router provides powerful data loading capabilities through loaders, allowing you to fetch data before rendering routes.
+
+## Overview
+
+Route loaders run before a route renders, ensuring data is available when components mount. Key features:
+
+- **Parallel loading** - Multiple loaders run concurrently
+- **Type-safe** - Full TypeScript support for loaded data
+- **Caching** - Built-in caching with configurable strategies
+- **Preloading** - Prefetch data before navigation
+- **Streaming** - Support for deferred data loading
+
+## Basic loader
+
+Define a loader using the `loader` option:
+
+```tsx
+import { createFileRoute } from '@tanstack/react-router'
+import { fetchPost } from '@/api'
+
+export const Route = createFileRoute('/posts/$postId')({
+  loader: async ({ params }) => {
+    const post = await fetchPost(params.postId)
+    return { post }
+  },
+  component: PostComponent,
+})
+
+function PostComponent() {
+  const { post } = Route.useLoaderData()
+  return <h1>{post.title}</h1>
+}
+```
+
+## Loader context
+
+Loaders receive a context object with useful properties:
+
+```tsx
+export const Route = createFileRoute('/posts/$postId')({
+  loader: async ({ params, context, deps, abortController, preload }) => {
+    // params - Path and search params
+    const { postId } = params
+    
+    // context - Route context from parent routes
+    const { queryClient } = context
+    
+    // deps - Explicit dependencies for cache invalidation
+    // abortController - For cancelling requests
+    const signal = abortController.signal
+    
+    // preload - Boolean indicating if this is a preload
+    if (preload) {
+      // Handle preload differently if needed
+    }
+    
+    return await fetchPost(postId, { signal })
+  },
+})
+```
+
+## beforeLoad hook
+
+Run code before the loader, useful for authentication or redirects:
+
+```tsx
+import { redirect } from '@tanstack/react-router'
+
+export const Route = createFileRoute('/dashboard')({
+  beforeLoad: async ({ context }) => {
+    if (!context.auth.isAuthenticated) {
+      throw redirect({
+        to: '/login',
+        search: {
+          redirect: '/dashboard',
+        },
+      })
+    }
+    
+    // Return additional context for the loader
+    return {
+      user: context.auth.user,
+    }
+  },
+  loader: async ({ context }) => {
+    // context.user is now available from beforeLoad
+    return await fetchDashboardData(context.user.id)
+  },
+})
+```
+
+## Parallel vs sequential loading
+
+### Parallel loading (default)
+
+Loaders run concurrently:
+
+```tsx
+const layoutRoute = createRoute({
+  path: '/dashboard',
+  loader: async () => {
+    const user = await fetchUser() // Runs in parallel with child
+    return { user }
+  },
+})
+
+const dashboardRoute = createRoute({
+  getParentRoute: () => layoutRoute,
+  path: '/',
+  loader: async () => {
+    const stats = await fetchStats() // Runs in parallel with parent
+    return { stats }
+  },
+})
+```
+
+### Sequential loading
+
+Access parent data in child loaders:
+
+```tsx
+const userRoute = createRoute({
+  path: '/users/$userId',
+  loader: async ({ params }) => {
+    const user = await fetchUser(params.userId)
+    return { user }
+  },
+})
+
+const userPostsRoute = createRoute({
+  getParentRoute: () => userRoute,
+  path: '/posts',
+  loader: async ({ context }) => {
+    // Wait for parent loader to complete
+    await context.loaderPromise
+    const parentData = context.loaderData
+    
+    // Now fetch posts for this specific user
+    const posts = await fetchUserPosts(parentData.user.id)
+    return { posts }
+  },
+})
+```
+
+## Caching
+
+Control how long loader data is cached:
+
+```tsx
+export const Route = createFileRoute('/posts')({
+  loader: async () => {
+    return await fetchPosts()
+  },
+  // Cache for 10 seconds
+  staleTime: 10_000,
+  // Keep in cache for 5 minutes even when route is inactive
+  gcTime: 5 * 60 * 1000,
+})
+```
+
+## Preloading
+
+Prefetch data before navigation:
+
+```tsx
+import { Link } from '@tanstack/react-router'
+
+function PostsList() {
+  return (
+    <div>
+      {posts.map((post) => (
+        <Link
+          key={post.id}
+          to="/posts/$postId"
+          params={{ postId: post.id }}
+          preload="intent" // Preload on hover/focus
+        >
+          {post.title}
+        </Link>
+      ))}
+    </div>
+  )
+}
+```
+
+Preload modes:
+- `false` - No preloading
+- `"intent"` - Preload on hover or focus
+- `"viewport"` - Preload when link enters viewport
+- `"render"` - Preload immediately when link renders
+
+## Deferred data
+
+Stream data that takes longer to load:
+
+```tsx
+import { defer } from '@tanstack/react-router'
+
+export const Route = createFileRoute('/dashboard')({
+  loader: async () => {
+    // Fast data loads immediately
+    const user = await fetchUser()
+    
+    // Slow data is deferred
+    const slowData = defer(fetchSlowData())
+    
+    return { user, slowData }
+  },
+  component: DashboardComponent,
+})
+
+function DashboardComponent() {
+  const { user, slowData } = Route.useLoaderData()
+  
+  return (
+    <div>
+      <h1>Welcome, {user.name}</h1>
+      <Suspense fallback={<div>Loading...</div>}>
+        <Await promise={slowData}>
+          {(data) => <SlowComponent data={data} />}
+        </Await>
+      </Suspense>
+    </div>
+  )
+}
+```
+
+## Error handling
+
+Handle loader errors with error boundaries:
+
+```tsx
+export const Route = createFileRoute('/posts/$postId')({
+  loader: async ({ params }) => {
+    const post = await fetchPost(params.postId)
+    if (!post) {
+      throw new Error('Post not found')
+    }
+    return { post }
+  },
+  errorComponent: ({ error, reset }) => (
+    <div>
+      <h2>Error loading post</h2>
+      <p>{error.message}</p>
+      <button onClick={reset}>Try again</button>
+    </div>
+  ),
+})
+```
+
+## Invalidation
+
+Invalidate cached loader data:
+
+```tsx
+import { useRouter } from '@tanstack/react-router'
+
+function UpdatePostButton({ postId }: { postId: string }) {
+  const router = useRouter()
+  
+  const handleUpdate = async () => {
+    await updatePost(postId)
+    
+    // Invalidate specific route
+    router.invalidate({
+      to: '/posts/$postId',
+      params: { postId },
+    })
+    
+    // Or invalidate all routes
+    router.invalidate()
+  }
+  
+  return <button onClick={handleUpdate}>Update</button>
+}
+```
+
+## Loader dependencies
+
+Specify explicit dependencies for cache invalidation:
+
+```tsx
+export const Route = createFileRoute('/posts')({
+  loaderDeps: ({ search }) => ({
+    page: search.page,
+    filter: search.filter,
+  }),
+  loader: async ({ deps }) => {
+    // Loader re-runs when page or filter changes
+    return await fetchPosts(deps.page, deps.filter)
+  },
+})
+```
+
+## Best practices
+
+<Accordion title="Keep loaders focused">
+Loaders should only fetch data. Move business logic to separate functions.
+</Accordion>
+
+<Accordion title="Use AbortController">
+Always pass the abort signal to fetch calls for proper cancellation.
+</Accordion>
+
+<Accordion title="Leverage caching">
+Set appropriate `staleTime` and `gcTime` to reduce unnecessary requests.
+</Accordion>
+
+<Accordion title="Handle errors gracefully">
+Provide helpful error messages and recovery options.
+</Accordion>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Error handling" icon="triangle-exclamation" href="/router/guides/error-handling">
+    Learn error boundary patterns
+  </Card>
+  <Card title="Loaders concept" icon="database" href="/router/concepts/loaders">
+    Deep dive into loader architecture
+  </Card>
+</CardGroup>

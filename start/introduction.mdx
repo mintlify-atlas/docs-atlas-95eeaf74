@@ -1,0 +1,138 @@
+---
+title: Introduction to TanStack Start
+description: Learn about TanStack Start, a full-stack React framework built on TanStack Router
+---
+
+# Introduction to TanStack Start
+
+TanStack Start is a modern, type-safe, full-stack React framework built on top of TanStack Router. It provides SSR, streaming, server functions, API routes, bundling, and more—all powered by Vite and ready to deploy to your favorite hosting provider.
+
+## What is TanStack Start?
+
+TanStack Start combines the best of client-side and server-side rendering, giving you a complete solution for building modern web applications. It's designed to be:
+
+- **Type-Safe**: Full TypeScript support with end-to-end type safety from server to client
+- **Client-First**: Built with a client-first philosophy while providing powerful server capabilities
+- **Fast**: Powered by Vite for lightning-fast development and optimized production builds
+- **Flexible**: Deploy anywhere—Vercel, Netlify, Cloudflare, or your own Node.js server
+
+## Built on TanStack Router
+
+Start is not a separate framework—it's an extension of TanStack Router that adds server-side capabilities. This means you get all the powerful features of TanStack Router:
+
+- File-based routing with automatic route generation
+- Type-safe navigation with validated search params and path params
+- Built-in data loading with suspense support
+- Code splitting and lazy loading out of the box
+- Powerful devtools for debugging routes and state
+
+And Start adds even more:
+
+- Server-side rendering (SSR) with streaming support
+- Server functions for type-safe client-server communication
+- API routes for building REST endpoints
+- Middleware support for authentication, logging, and more
+- Automatic code splitting between client and server code
+
+## Key Features
+
+### Server Functions
+
+Write type-safe server-side functions that can be called directly from your client code:
+
+```tsx
+import { createServerFn } from '@tanstack/react-start'
+
+const getUser = createServerFn({ method: 'GET' })
+  .handler(async () => {
+    // This code runs on the server
+    const user = await db.user.findFirst()
+    return user
+  })
+
+// Call from your component
+function UserProfile() {
+  const user = await getUser()
+  return <div>{user.name}</div>
+}
+```
+
+### API Routes
+
+Create REST API endpoints alongside your pages:
+
+```tsx
+// src/routes/api/users.ts
+import { createFileRoute } from '@tanstack/react-router'
+
+export const Route = createFileRoute('/api/users')({
+  server: {
+    handlers: {
+      GET: async ({ request }) => {
+        const users = await db.users.findMany()
+        return Response.json(users)
+      },
+    },
+  },
+})
+```
+
+### Server-Side Rendering
+
+All pages are server-rendered by default, with automatic hydration on the client:
+
+```tsx
+export const Route = createFileRoute('/posts/$postId')({
+  loader: async ({ params }) => {
+    // Runs on server during SSR
+    const post = await fetchPost(params.postId)
+    return post
+  },
+  component: Post,
+})
+```
+
+### Streaming
+
+Stream data to the client as it becomes available:
+
+```tsx
+import { defer } from '@tanstack/react-router'
+
+export const Route = createFileRoute('/dashboard')({
+  loader: async () => {
+    return {
+      // Wait for critical data
+      user: await fetchUser(),
+      // Stream non-critical data
+      analytics: defer(fetchAnalytics()),
+    }
+  },
+})
+```
+
+## How It Works
+
+TanStack Start uses Vite as its build tool and development server. The `@tanstack/react-start/plugin/vite` plugin handles:
+
+1. **Route Generation**: Automatically generates route definitions from your file structure
+2. **Code Splitting**: Separates client and server code into appropriate bundles
+3. **Server Entry**: Creates the server entry point for handling SSR and API requests
+4. **Type Generation**: Generates TypeScript types for type-safe routing
+
+During development, Vite's HMR (Hot Module Replacement) provides instant feedback as you make changes. In production, Start generates optimized bundles for both client and server.
+
+## When to Use TanStack Start
+
+TanStack Start is ideal for:
+
+- Full-stack React applications that need both client and server capabilities
+- Projects that require server-side rendering for SEO or performance
+- Applications that need type-safe communication between client and server
+- Teams that want a modern, flexible framework without framework lock-in
+
+If you only need client-side routing, you might prefer using TanStack Router directly. Start is designed for applications that need server-side capabilities.
+
+## Next Steps
+
+Ready to get started? Follow our [Installation Guide](./installation) to set up your first TanStack Start project, or jump straight to the [Quickstart](./quickstart) to build your first full-stack app.

@@ -1,0 +1,401 @@
+---
+title: Authentication
+description: Protect routes and manage user authentication in your application
+---
+
+Implement authentication flows with protected routes, redirects, and context-based access control.
+
+## Setup auth context
+
+Create an authentication context for your router:
+
+```tsx src/auth.tsx
+export interface AuthContext {
+  isAuthenticated: boolean
+  user: User | null
+  login: (username: string, password: string) => Promise<void>
+  logout: () => Promise<void>
+}
+
+export function createAuthContext(): AuthContext {
+  let user: User | null = null
+  
+  return {
+    get isAuthenticated() {
+      return user !== null
+    },
+    get user() {
+      return user
+    },
+    async login(username, password) {
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        body: JSON.stringify({ username, password }),
+      })
+      user = await response.json()
+    },
+    async logout() {
+      await fetch('/api/logout', { method: 'POST' })
+      user = null
+    },
+  }
+}
+```
+
+## Router with auth context
+
+Provide auth context to all routes:
+
+```tsx src/main.tsx
+import { createRouter, RouterProvider } from '@tanstack/react-router'
+import { createAuthContext } from './auth'
+import { routeTree } from './routeTree.gen'
+
+const auth = createAuthContext()
+
+const router = createRouter({
+  routeTree,
+  context: {
+    auth,
+  },
+})
+
+// Register for type safety
+declare module '@tanstack/react-router' {
+  interface Register {
+    router: typeof router
+  }
+}
+
+function App() {
+  return <RouterProvider router={router} />
+}
+```
+
+## Protected routes
+
+Guard routes with authentication checks:
+
+```tsx src/routes/_authenticated.tsx
+import { createFileRoute, redirect } from '@tanstack/react-router'
+
+export const Route = createFileRoute('/_authenticated')({
+  beforeLoad: async ({ context, location }) => {
+    if (!context.auth.isAuthenticated) {
+      throw redirect({
+        to: '/login',
+        search: {
+          // Redirect back after login
+          redirect: location.href,
+        },
+      })
+    }
+  },
+})
+```
+
+```
+src/routes/
+  _authenticated.tsx        -> Auth layout (checks auth)
+  _authenticated/
+    dashboard.tsx           -> /dashboard (protected)
+    profile.tsx             -> /profile (protected)
+    settings.tsx            -> /settings (protected)
+```
+
+## Login page
+
+Implement login with redirect:
+
+```tsx src/routes/login.tsx
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { z } from 'zod'
+
+const loginSearchSchema = z.object({
+  redirect: z.string().optional(),
+})
+
+export const Route = createFileRoute('/login')({
+  validateSearch: loginSearchSchema,
+  component: LoginPage,
+})
+
+function LoginPage() {
+  const navigate = useNavigate()
+  const { redirect } = Route.useSearch()
+  const { auth } = Route.useRouteContext()
+  const [error, setError] = React.useState<string>()
+  
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    const formData = new FormData(e.currentTarget)
+    const username = formData.get('username') as string
+    const password = formData.get('password') as string
+    
+    try {
+      await auth.login(username, password)
+      
+      // Redirect to original destination or dashboard
+      navigate({ to: redirect || '/dashboard' })
+    } catch (err) {
+      setError('Invalid credentials')
+    }
+  }
+  
+  return (
+    <form onSubmit={handleSubmit}>
+      <input name="username" type="text" required />
+      <input name="password" type="password" required />
+      {error && <p className="error">{error}</p>}
+      <button type="submit">Login</button>
+    </form>
+  )
+}
+```
+
+## Role-based access
+
+Protect routes based on user roles:
+
+```tsx src/routes/_authenticated/_admin.tsx
+import { createFileRoute, redirect } from '@tanstack/react-router'
+
+export const Route = createFileRoute('/_authenticated/_admin')({
+  beforeLoad: async ({ context }) => {
+    if (context.auth.user?.role !== 'admin') {
+      throw redirect({
+        to: '/unauthorized',
+      })
+    }
+  },
+})
+```
+
+```
+src/routes/
+  _authenticated/
+    _admin/
+      users.tsx             -> /users (admin only)
+      settings.tsx          -> /settings (admin only)
+```
+
+## Conditional navigation
+
+Show links based on permissions:
+
+```tsx
+import { Link } from '@tanstack/react-router'
+
+function Navigation() {
+  const { auth } = Route.useRouteContext()
+  
+  return (
+    <nav>
+      <Link to="/">Home</Link>
+      
+      {auth.isAuthenticated ? (
+        <>
+          <Link to="/dashboard">Dashboard</Link>
+          <Link to="/profile">Profile</Link>
+          {auth.user?.role === 'admin' && (
+            <Link to="/admin">Admin</Link>
+          )}
+          <button onClick={auth.logout}>Logout</button>
+        </>
+      ) : (
+        <Link to="/login">Login</Link>
+      )}
+    </nav>
+  )
+}
+```
+
+## Session management
+
+Check and refresh authentication:
+
+```tsx src/routes/__root.tsx
+import { createRootRouteWithContext } from '@tanstack/react-router'
+import type { AuthContext } from '@/auth'
+
+interface RouterContext {
+  auth: AuthContext
+}
+
+export const Route = createRootRouteWithContext<RouterContext>()({
+  beforeLoad: async ({ context }) => {
+    // Check session on every navigation
+    try {
+      const response = await fetch('/api/session')
+      if (!response.ok) {
+        context.auth.user = null
+      }
+    } catch (err) {
+      context.auth.user = null
+    }
+  },
+})
+```
+
+## Token-based auth
+
+Store and use JWT tokens:
+
+```tsx src/auth.tsx
+export function createAuthContext() {
+  const getToken = () => localStorage.getItem('auth_token')
+  const setToken = (token: string) => localStorage.setItem('auth_token', token)
+  const clearToken = () => localStorage.removeItem('auth_token')
+  
+  return {
+    get isAuthenticated() {
+      return !!getToken()
+    },
+    async login(username: string, password: string) {
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      })
+      
+      const { token } = await response.json()
+      setToken(token)
+    },
+    async logout() {
+      clearToken()
+    },
+    async fetch(url: string, options?: RequestInit) {
+      const token = getToken()
+      return fetch(url, {
+        ...options,
+        headers: {
+          ...options?.headers,
+          Authorization: `Bearer ${token}`,
+        },
+      })
+    },
+  }
+}
+```
+
+## OAuth/Social login
+
+Implement OAuth flows:
+
+```tsx src/routes/auth/callback.tsx
+import { createFileRoute, redirect } from '@tanstack/react-router'
+import { z } from 'zod'
+
+const callbackSearchSchema = z.object({
+  code: z.string(),
+  state: z.string().optional(),
+})
+
+export const Route = createFileRoute('/auth/callback')({
+  validateSearch: callbackSearchSchema,
+  loader: async ({ search, context }) => {
+    // Exchange code for token
+    const response = await fetch('/api/oauth/token', {
+      method: 'POST',
+      body: JSON.stringify({ code: search.code }),
+    })
+    
+    const { token } = await response.json()
+    localStorage.setItem('auth_token', token)
+    
+    // Redirect to app
+    throw redirect({ to: '/dashboard' })
+  },
+})
+```
+
+## Logout handling
+
+Clear session and redirect:
+
+```tsx
+function LogoutButton() {
+  const navigate = useNavigate()
+  const { auth } = Route.useRouteContext()
+  
+  const handleLogout = async () => {
+    await auth.logout()
+    navigate({ to: '/login' })
+  }
+  
+  return <button onClick={handleLogout}>Logout</button>
+}
+```
+
+## Persisting auth state
+
+Restore auth on page reload:
+
+```tsx src/main.tsx
+const auth = createAuthContext()
+
+// Restore session on app load
+const restoreSession = async () => {
+  try {
+    const response = await fetch('/api/session')
+    if (response.ok) {
+      const user = await response.json()
+      auth.user = user
+    }
+  } catch (err) {
+    console.error('Failed to restore session', err)
+  }
+}
+
+restoreSession().then(() => {
+  const router = createRouter({ routeTree, context: { auth } })
+  // ... render app
+})
+```
+
+## Best practices
+
+<Accordion title="Use pathless layout routes">
+Wrap protected routes in `_authenticated` layout for clean URLs.
+</Accordion>
+
+<Accordion title="Check auth in beforeLoad">
+Use `beforeLoad` instead of `loader` for auth checks to avoid data fetching for unauthorized users.
+</Accordion>
+
+<Accordion title="Store minimal data in context">
+Only store essential auth state - fetch user details when needed.
+</Accordion>
+
+<Accordion title="Handle token expiration">
+Implement token refresh logic and redirect to login on expiration.
+</Accordion>
+
+<Accordion title="Use HTTPS in production">
+Always use HTTPS to protect authentication tokens and credentials.
+</Accordion>
+
+## Security considerations
+
+<Warning>
+Never store sensitive data like passwords in localStorage. Use secure, httpOnly cookies for tokens when possible.
+</Warning>
+
+<Warning>
+Always validate user permissions on the server. Client-side checks are for UX only.
+</Warning>
+
+<Info>
+Implement CSRF protection for state-changing operations.
+</Info>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Data loading" icon="database" href="/router/guides/data-loading">
+    Load user data in protected routes
+  </Card>
+  <Card title="beforeLoad hook" icon="shield" href="/router/concepts/routes">
+    Learn more about beforeLoad
+  </Card>
+</CardGroup>

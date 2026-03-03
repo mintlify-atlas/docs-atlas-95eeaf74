@@ -1,0 +1,421 @@
+---
+title: Middleware
+description: Create reusable middleware for server functions and requests
+---
+
+## createMiddleware
+
+Creates middleware that can intercept and modify server function calls or HTTP requests.
+
+### Basic Usage
+
+```tsx
+import { createMiddleware } from '@tanstack/react-start'
+
+const loggingMiddleware = createMiddleware().server(async ({ next }) => {
+  console.log('Request started')
+  const result = await next()
+  console.log('Request completed')
+  return result
+})
+```
+
+### API Reference
+
+<ParamField path="type" type="'request' | 'function'" default="'request'">
+  The type of middleware:
+  - `'request'`: Runs for all HTTP requests (pages and server functions)
+  - `'function'`: Runs only for server function calls
+</ParamField>
+
+### Middleware Types
+
+#### Request Middleware
+
+Runs for all HTTP requests including page loads and server function calls:
+
+```tsx
+const requestMiddleware = createMiddleware({ type: 'request' })
+  .server(async ({ request, pathname, context, next }) => {
+    console.log(`Request to ${pathname}`)
+    return next()
+  })
+
+// Use in route configuration
+export const Route = createFileRoute('/api/users')({
+  server: {
+    middleware: [requestMiddleware],
+    handlers: {
+      GET: async () => Response.json({ users: [] })
+    }
+  }
+})
+```
+
+#### Function Middleware
+
+Runs only for server function calls and can execute on both client and server:
+
+```tsx
+const functionMiddleware = createMiddleware({ type: 'function' })
+  .client(async ({ next, sendContext }) => {
+    // Runs on the client before sending request
+    return next({
+      sendContext: { timestamp: Date.now() }
+    })
+  })
+  .server(async ({ next, context }) => {
+    // Runs on the server
+    console.log('Client timestamp:', context.timestamp)
+    return next()
+  })
+```
+
+### Builder Methods
+
+#### `.middleware()`
+
+Composes middleware by nesting other middleware:
+
+<ParamField path="middlewares" type="Array<Middleware>" required>
+  Array of middleware to run before this middleware executes.
+</ParamField>
+
+```tsx
+const parentMiddleware = createMiddleware().server(async ({ next }) => {
+  return next({ context: { parent: true } })
+})
+
+const childMiddleware = createMiddleware()
+  .middleware([parentMiddleware])
+  .server(async ({ next, context }) => {
+    console.log(context.parent) // true
+    return next()
+  })
+```
+
+#### `.inputValidator()`
+
+Validates input data for function middleware:
+
+<ParamField path="validator" type="Validator" required>
+  Validation schema for the input data.
+</ParamField>
+
+```tsx
+import { z } from 'zod'
+
+const validatingMiddleware = createMiddleware({ type: 'function' })
+  .inputValidator(z.object({ userId: z.string() }))
+  .server(async ({ data, next }) => {
+    // data is typed and validated as { userId: string }
+    return next()
+  })
+```
+
+#### `.client()`
+
+Defines client-side middleware for function middleware:
+
+<ParamField path="fn" type="ClientMiddlewareFn" required>
+  Function that runs on the client before sending the request to the server.
+</ParamField>
+
+```tsx
+const clientMiddleware = createMiddleware({ type: 'function' })
+  .client(async ({ data, context, sendContext, next, fetch }) => {
+    // Add authentication token
+    return next({
+      headers: { 'Authorization': 'Bearer token' },
+      sendContext: { clientTime: Date.now() }
+    })
+  })
+```
+
+**Client Middleware Context:**
+
+<ParamField path="data" type="any">
+  The input data being sent to the server.
+</ParamField>
+
+<ParamField path="context" type="object">
+  Client-side context accumulated from previous middleware.
+</ParamField>
+
+<ParamField path="sendContext" type="object">
+  Context to send to the server (must be serializable).
+</ParamField>
+
+<ParamField path="method" type="'GET' | 'POST'">
+  The HTTP method being used.
+</ParamField>
+
+<ParamField path="signal" type="AbortSignal">
+  AbortSignal for the request.
+</ParamField>
+
+<ParamField path="serverFnMeta" type="ClientFnMeta">
+  Metadata about the server function (id).
+</ParamField>
+
+<ParamField path="filename" type="string">
+  The filename where the server function is defined.
+</ParamField>
+
+<ParamField path="fetch" type="typeof fetch">
+  The fetch function to use for the request.
+</ParamField>
+
+<ParamField path="next" type="function" required>
+  Call to proceed to the next middleware or make the server request.
+</ParamField>
+
+#### `.server()`
+
+Defines server-side middleware logic:
+
+<ParamField path="fn" type="ServerMiddlewareFn" required>
+  Function that runs on the server.
+</ParamField>
+
+**For Request Middleware:**
+
+```tsx
+const serverRequestMiddleware = createMiddleware({ type: 'request' })
+  .server(async ({ request, pathname, context, next, serverFnMeta }) => {
+    // Add to context
+    return next({ context: { userId: '123' } })
+  })
+```
+
+<ParamField path="request" type="Request">
+  The HTTP Request object.
+</ParamField>
+
+<ParamField path="pathname" type="string">
+  The request pathname.
+</ParamField>
+
+<ParamField path="context" type="object">
+  Context accumulated from previous middleware.
+</ParamField>
+
+<ParamField path="serverFnMeta" type="ServerFnMeta | undefined">
+  Metadata about the server function if this is a server function request, undefined for page requests.
+</ParamField>
+
+<ParamField path="next" type="function" required>
+  Proceeds to the next middleware. Can pass context: `next({ context: {...} })`
+</ParamField>
+
+**For Function Middleware:**
+
+```tsx
+const serverFunctionMiddleware = createMiddleware({ type: 'function' })
+  .server(async ({ data, context, next, method, serverFnMeta, signal }) => {
+    // Process the server function call
+    return next({ 
+      sendContext: { timestamp: Date.now() } 
+    })
+  })
+```
+
+<ParamField path="data" type="any">
+  The validated input data.
+</ParamField>
+
+<ParamField path="context" type="object">
+  Server-side context from previous middleware and sent from client.
+</ParamField>
+
+<ParamField path="method" type="'GET' | 'POST'">
+  The HTTP method.
+</ParamField>
+
+<ParamField path="serverFnMeta" type="ServerFnMeta">
+  Server function metadata (id, name, filename).
+</ParamField>
+
+<ParamField path="signal" type="AbortSignal">
+  AbortSignal for request cancellation.
+</ParamField>
+
+<ParamField path="next" type="function" required>
+  Proceeds to next middleware. Can pass context and sendContext.
+</ParamField>
+
+### Context Flow
+
+#### Client Context
+
+Context on the client that doesn't get sent to the server:
+
+```tsx
+const middleware = createMiddleware({ type: 'function' })
+  .client(async ({ next }) => {
+    return next({
+      context: { localData: 'stays on client' }
+    })
+  })
+```
+
+#### Send Context
+
+Serializable context sent from client to server:
+
+```tsx
+const middleware = createMiddleware({ type: 'function' })
+  .client(async ({ next }) => {
+    return next({
+      sendContext: { userId: '123' } // Sent to server
+    })
+  })
+  .server(async ({ context, next }) => {
+    console.log(context.userId) // '123'
+    return next()
+  })
+```
+
+#### Server Context
+
+Context on the server that gets sent back to client:
+
+```tsx
+const middleware = createMiddleware({ type: 'function' })
+  .server(async ({ next }) => {
+    return next({
+      context: { serverId: 'abc' }, // Stays on server
+      sendContext: { timestamp: Date.now() } // Sent to client
+    })
+  })
+  .client(async ({ next }) => {
+    const result = await next()
+    console.log(result.context.timestamp) // Available on client
+    return result
+  })
+```
+
+### Examples
+
+#### Authentication Middleware
+
+```tsx
+const authMiddleware = createMiddleware({ type: 'function' })
+  .client(async ({ next }) => {
+    const token = localStorage.getItem('token')
+    return next({
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+  })
+  .server(async ({ request, next }) => {
+    const token = request.headers.get('Authorization')
+    if (!token) {
+      throw new Error('Unauthorized')
+    }
+    const user = await verifyToken(token)
+    return next({ context: { user } })
+  })
+```
+
+#### Logging Middleware
+
+```tsx
+const loggingMiddleware = createMiddleware({ type: 'function' })
+  .client(async ({ next, serverFnMeta }) => {
+    console.log(`Calling ${serverFnMeta.id}`)
+    const start = Date.now()
+    const result = await next()
+    console.log(`Completed in ${Date.now() - start}ms`)
+    return result
+  })
+  .server(async ({ next, serverFnMeta }) => {
+    console.log(`Executing ${serverFnMeta.name}`)
+    return next()
+  })
+```
+
+#### CORS Middleware
+
+```tsx
+const corsMiddleware = createMiddleware({ type: 'request' })
+  .server(async ({ next }) => {
+    const result = await next()
+    result.response.headers.set('Access-Control-Allow-Origin', '*')
+    return result
+  })
+```
+
+#### Rate Limiting
+
+```tsx
+const rateLimitMiddleware = createMiddleware({ type: 'request' })
+  .server(async ({ request, next }) => {
+    const ip = request.headers.get('x-forwarded-for')
+    const isRateLimited = await checkRateLimit(ip)
+    
+    if (isRateLimited) {
+      return new Response('Too many requests', { status: 429 })
+    }
+    
+    return next()
+  })
+```
+
+#### Validation Middleware
+
+```tsx
+import { z } from 'zod'
+
+const userSchema = z.object({
+  userId: z.string().uuid()
+})
+
+const validationMiddleware = createMiddleware({ type: 'function' })
+  .inputValidator(userSchema)
+  .server(async ({ data, next }) => {
+    // data.userId is validated as UUID
+    return next()
+  })
+```
+
+### Using Middleware
+
+#### With Server Functions
+
+```tsx
+const myFn = createServerFn()
+  .middleware([authMiddleware, loggingMiddleware])
+  .handler(async ({ context }) => {
+    // Access context from middleware
+    console.log(context.user)
+    return { success: true }
+  })
+```
+
+#### With Routes (Request Middleware)
+
+```tsx
+export const Route = createFileRoute('/api/users')({
+  server: {
+    middleware: [corsMiddleware, rateLimitMiddleware],
+    handlers: {
+      GET: async () => {
+        return Response.json({ users: [] })
+      }
+    }
+  }
+})
+```
+
+#### Global Middleware
+
+Configure global middleware in your app configuration:
+
+```tsx
+import { createStart } from '@tanstack/react-start'
+
+const start = createStart({
+  requestMiddleware: [corsMiddleware],
+  functionMiddleware: [loggingMiddleware]
+})
+```

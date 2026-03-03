@@ -1,0 +1,466 @@
+---
+title: Path Parameters
+description: Extract and validate path parameters from route patterns
+---
+
+Path parameters allow you to capture dynamic segments from URLs and use them in your application with full type safety.
+
+## Defining Path Parameters
+
+Path parameters are defined in route paths using special syntax:
+
+### Required Parameters
+
+Use `$` prefix for required parameters:
+
+```tsx
+const postRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/posts/$postId',
+})
+
+// Matches: /posts/123
+// params: { postId: '123' }
+```
+
+### Optional Parameters
+
+Use `{-$paramName}` for optional parameters:
+
+```tsx
+const userRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/users/{-$userId}',
+})
+
+// Matches: /users or /users/123
+// params: { userId: '123' | undefined }
+```
+
+### Wildcard Parameters
+
+Use `$` alone to capture everything:
+
+```tsx
+const fileRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/files/$',
+})
+
+// Matches: /files/documents/report.pdf
+// params: { _splat: 'documents/report.pdf' }
+```
+
+Access wildcards via the special `_splat` parameter.
+
+### Named Wildcards
+
+Combine wildcards with names:
+
+```tsx
+const fileRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/files/$path',
+})
+
+// Matches: /files/documents/report.pdf
+// params: { path: 'documents/report.pdf' }
+```
+
+## Using Path Parameters
+
+Access parameters in components with `useParams`:
+
+```tsx
+import { useParams } from '@tanstack/react-router'
+
+function PostComponent() {
+  const { postId } = useParams({ from: '/posts/$postId' })
+  
+  return <div>Post ID: {postId}</div>
+}
+```
+
+### Type Safety
+
+Specify the route for type-safe parameter access:
+
+```tsx
+// Type-safe: Only parameters from this route
+const params = useParams({ from: '/posts/$postId', strict: true })
+// params.postId is typed as string
+
+// Loose: Union of all parameters from all routes
+const params = useParams({ strict: false })
+```
+
+## Parameter Parsing
+
+Transform string parameters into typed values:
+
+```tsx
+const postRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/posts/$postId',
+  params: {
+    parse: (params) => ({
+      postId: Number(params.postId),
+    }),
+    stringify: (params) => ({
+      postId: String(params.postId),
+    }),
+  },
+})
+```
+
+Now `postId` is a `number` instead of a `string`:
+
+```tsx
+function PostComponent() {
+  const { postId } = useParams({ from: '/posts/$postId' })
+  // postId is number
+  
+  const nextId = postId + 1 // Type-safe arithmetic
+}
+```
+
+### Validation During Parsing
+
+Throw errors for invalid parameters:
+
+```tsx
+const postRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/posts/$postId',
+  params: {
+    parse: (params) => {
+      const postId = Number(params.postId)
+      
+      if (isNaN(postId) || postId <= 0) {
+        throw new Error('Invalid post ID')
+      }
+      
+      return { postId }
+    },
+  },
+})
+```
+
+## Parameters in Loaders
+
+Access parameters in loader functions:
+
+```tsx
+const postRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/posts/$postId',
+  params: {
+    parse: (params) => ({
+      postId: Number(params.postId),
+    }),
+  },
+  loader: async ({ params }) => {
+    // params.postId is number
+    const post = await fetchPost(params.postId)
+    return { post }
+  },
+})
+```
+
+## Parameters in Navigation
+
+Provide parameters when navigating:
+
+### Using Links
+
+```tsx
+<Link
+  to="/posts/$postId"
+  params={{ postId: '123' }}
+>
+  View Post 123
+</Link>
+
+// With parsing, provide the parsed type
+<Link
+  to="/posts/$postId"
+  params={{ postId: 123 }} {/* number, not string */}
+>
+  View Post 123
+</Link>
+```
+
+### Using Navigate
+
+```tsx
+import { useNavigate } from '@tanstack/react-router'
+
+function Component() {
+  const navigate = useNavigate()
+  
+  const viewPost = (postId: number) => {
+    navigate({
+      to: '/posts/$postId',
+      params: { postId },
+    })
+  }
+  
+  return <button onClick={() => viewPost(123)}>View Post</button>
+}
+```
+
+## Allowed Characters
+
+By default, path parameters are URL-encoded. Configure allowed characters:
+
+```tsx
+const router = createRouter({
+  routeTree,
+  pathParamsAllowedCharacters: [';', ':', '@', '&', '=', '+', '$', ','],
+})
+```
+
+Characters in the allowlist won't be encoded in path parameters.
+
+## Multiple Parameters
+
+Routes can have multiple parameters:
+
+```tsx
+const commentRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/posts/$postId/comments/$commentId',
+  params: {
+    parse: (params) => ({
+      postId: Number(params.postId),
+      commentId: Number(params.commentId),
+    }),
+  },
+})
+```
+
+Access all parameters:
+
+```tsx
+function CommentComponent() {
+  const { postId, commentId } = useParams({
+    from: '/posts/$postId/comments/$commentId',
+  })
+  
+  return (
+    <div>
+      Post: {postId}, Comment: {commentId}
+    </div>
+  )
+}
+```
+
+## Inherited Parameters
+
+Child routes inherit parameters from parents:
+
+```tsx
+const postsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/posts/$postId',
+})
+
+const editRoute = createRoute({
+  getParentRoute: () => postsRoute,
+  path: '/edit',
+})
+
+// Full path: /posts/$postId/edit
+// editRoute inherits postId parameter
+```
+
+Access parent parameters:
+
+```tsx
+function EditComponent() {
+  const params = useParams({ from: '/posts/$postId/edit' })
+  // params.postId is available
+}
+```
+
+## Parameter Validation
+
+Use validators for type-safe parameter parsing:
+
+```tsx
+import { z } from 'zod'
+
+const paramsSchema = z.object({
+  postId: z.coerce.number().positive(),
+})
+
+const postRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/posts/$postId',
+  params: {
+    parse: (params) => paramsSchema.parse(params),
+  },
+})
+```
+
+## Accessing Raw Parameters
+
+Access unparsed string parameters:
+
+```tsx
+function Component() {
+  const router = useRouter()
+  const matches = router.state.matches
+  
+  // Raw params are in match._strictParams
+  const rawParams = matches[0]?._strictParams
+}
+```
+
+## Parameter Encoding
+
+The router handles encoding automatically:
+
+```tsx
+// URL: /posts/hello%20world
+<Link to="/posts/$postId" params={{ postId: 'hello world' }}>
+  View Post
+</Link>
+```
+
+Access the decoded value:
+
+```tsx
+function Component() {
+  const { postId } = useParams({ from: '/posts/$postId' })
+  console.log(postId) // "hello world" (decoded)
+}
+```
+
+## Building URLs with Parameters
+
+Build URLs programmatically:
+
+```tsx
+import { useRouter } from '@tanstack/react-router'
+
+function Component() {
+  const router = useRouter()
+  
+  const url = router.buildLocation({
+    to: '/posts/$postId',
+    params: { postId: 123 },
+  })
+  
+  console.log(url.pathname) // "/posts/123"
+}
+```
+
+## Skip Route on Parse Error
+
+Skip routes when parameter parsing fails:
+
+```tsx
+const postRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/posts/$postId',
+  params: {
+    parse: (params) => {
+      const postId = Number(params.postId)
+      if (isNaN(postId)) throw new Error('Invalid ID')
+      return { postId }
+    },
+  },
+  skipRouteOnParseError: {
+    params: true,
+    priority: 1,
+  },
+})
+```
+
+With this option:
+- Routes with failed parsing are skipped during matching
+- Router continues to find a matching route
+- Useful for fallback behavior
+
+## Common Patterns
+
+### Numeric IDs
+
+```tsx
+const route = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/items/$itemId',
+  params: {
+    parse: (params) => ({
+      itemId: Number(params.itemId),
+    }),
+    stringify: (params) => ({
+      itemId: String(params.itemId),
+    }),
+  },
+})
+```
+
+### UUID Validation
+
+```tsx
+import { z } from 'zod'
+
+const uuidSchema = z.object({
+  userId: z.string().uuid(),
+})
+
+const route = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/users/$userId',
+  params: {
+    parse: (params) => uuidSchema.parse(params),
+  },
+})
+```
+
+### Slugs
+
+```tsx
+const route = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/blog/$slug',
+  params: {
+    parse: (params) => ({
+      slug: params.slug.toLowerCase().replace(/\s+/g, '-'),
+    }),
+  },
+})
+```
+
+### File Paths
+
+```tsx
+const fileRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/files/$filePath',
+})
+
+// Usage
+<Link to="/files/$filePath" params={{ filePath: 'docs/guide.md' }}>
+  View File
+</Link>
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Search Params" icon="magnifying-glass" href="./search-params">
+    Work with URL search parameters
+  </Card>
+  <Card title="Loaders" icon="download" href="./loaders">
+    Use parameters in data loading
+  </Card>
+  <Card title="Type Safety" icon="shield-check" href="./type-safety">
+    Configure end-to-end type safety
+  </Card>
+  <Card title="Navigation" icon="arrow-pointer" href="./navigation">
+    Navigate with path parameters
+  </Card>
+</CardGroup>

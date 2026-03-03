@@ -1,0 +1,196 @@
+---
+title: Installation
+description: Install TanStack Router in your React application with npm, yarn, or pnpm
+---
+
+Get started with TanStack Router by installing the package in your React project.
+
+## Requirements
+
+Before installing TanStack Router, ensure you have:
+
+- **Node.js**: Version 20.19 or higher
+- **React**: Version 18.0.0 or higher (React 19 is also supported)
+- **TypeScript**: Version 5.4 or higher (recommended for full type-safety)
+
+## Package Installation
+
+Install the core router package using your preferred package manager:
+
+<CodeGroup>
+
+```bash npm
+npm install @tanstack/react-router
+```
+
+```bash yarn
+yarn add @tanstack/react-router
+```
+
+```bash pnpm
+pnpm add @tanstack/react-router
+```
+
+</CodeGroup>
+
+## Additional Packages
+
+Depending on your needs, you may want to install additional packages:
+
+### DevTools (Recommended)
+
+The DevTools package provides a visual debugger for inspecting router state during development:
+
+<CodeGroup>
+
+```bash npm
+npm install --save-dev @tanstack/react-router-devtools
+```
+
+```bash yarn
+yarn add --dev @tanstack/react-router-devtools
+```
+
+```bash pnpm
+pnpm add --save-dev @tanstack/react-router-devtools
+```
+
+</CodeGroup>
+
+### File-Based Routing Plugin
+
+For file-based routing, install the appropriate bundler plugin:
+
+<CodeGroup>
+
+```bash npm (Vite)
+npm install --save-dev @tanstack/router-plugin
+```
+
+```bash yarn (Vite)
+yarn add --dev @tanstack/router-plugin
+```
+
+```bash pnpm (Vite)
+pnpm add --save-dev @tanstack/router-plugin
+```
+
+</CodeGroup>
+
+<Info>
+  The `@tanstack/router-plugin` package works with Vite, Webpack, esbuild, and Rspack through a universal plugin interface.
+</Info>
+
+### Validation Adapters
+
+Add type-safe validation for search params and path params:
+
+<CodeGroup>
+
+```bash Zod
+npm install @tanstack/zod-adapter zod
+```
+
+```bash Valibot
+npm install @tanstack/valibot-adapter valibot
+```
+
+```bash ArkType
+npm install @tanstack/arktype-adapter arktype
+```
+
+</CodeGroup>
+
+## Vite Plugin Configuration (File-Based Routing)
+
+If you're using file-based routing with Vite, configure the plugin in your `vite.config.ts`:
+
+```ts vite.config.ts
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import { TanStackRouterVite } from '@tanstack/router-plugin/vite'
+
+export default defineConfig({
+  plugins: [
+    TanStackRouterVite(),
+    react(),
+  ],
+})
+```
+
+<Warning>
+  The TanStack Router plugin must be placed **before** the React plugin in the plugins array.
+</Warning>
+
+## TypeScript Configuration
+
+For the best development experience with full type-safety, ensure your `tsconfig.json` includes:
+
+```json tsconfig.json
+{
+  "compilerOptions": {
+    "strict": true,
+    "moduleResolution": "bundler",
+    "module": "ESNext",
+    "target": "ES2020",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "skipLibCheck": false
+  }
+}
+```
+
+<Tip>
+  Setting `"skipLibCheck": false` enables full type checking for better route type inference.
+</Tip>
+
+## Verify Installation
+
+Create a simple test to verify the installation:
+
+```tsx test.tsx
+import { createRouter, createRootRoute } from '@tanstack/react-router'
+
+const rootRoute = createRootRoute({
+  component: () => <div>Hello TanStack Router!</div>,
+})
+
+const router = createRouter({ routeTree: rootRoute })
+
+console.log('Router created successfully!', router)
+```
+
+If you can import these functions without errors, you're ready to go!
+
+## Next Steps
+
+Now that TanStack Router is installed, you can:
+
+<CardGroup cols={2}>
+  <Card title="Follow the Quickstart" icon="rocket" href="/router/quickstart">
+    Build a working router in minutes
+  </Card>
+  
+  <Card title="Learn File-Based Routing" icon="folder" href="/router/guides/file-based-routing">
+    Set up automatic route generation
+  </Card>
+  
+  <Card title="Explore Code-Based Routing" icon="code" href="/router/guides/code-based-routing">
+    Define routes programmatically
+  </Card>
+  
+  <Card title="Configure DevTools" icon="wrench" href="/router/guides/devtools">
+    Set up the router DevTools
+  </Card>
+</CardGroup>
+
+## Package Versions
+
+TanStack Router follows semantic versioning. You can check the latest version on:
+
+- [npm package page](https://www.npmjs.com/package/@tanstack/react-router)
+- [GitHub releases](https://github.com/TanStack/router/releases)
+
+<Note>
+  All TanStack Router packages are published together with matching version numbers for compatibility.
+</Note>

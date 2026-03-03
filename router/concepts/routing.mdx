@@ -1,0 +1,235 @@
+---
+title: Routing
+description: Understanding the core routing concepts in TanStack Router
+---
+
+TanStack Router provides a powerful, type-safe routing system that supports both file-based and code-based routing approaches. At its core, the router matches URLs to route definitions, loads data, and renders the appropriate components.
+
+## How Routing Works
+
+The router operates by matching the current browser location against a tree of route definitions. Each route can:
+
+- Define a path pattern to match against
+- Load data before rendering
+- Validate and parse URL parameters
+- Render components with full type safety
+
+## Route Trees
+
+Routes are organized in a hierarchical tree structure, where child routes inherit context from their parents:
+
+```tsx
+const rootRoute = createRootRoute()
+
+const indexRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/',
+})
+
+const aboutRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/about',
+})
+
+const routeTree = rootRoute.addChildren([indexRoute, aboutRoute])
+```
+
+## Creating a Router
+
+The router is created with a route tree and various configuration options:
+
+```tsx
+import { createRouter } from '@tanstack/react-router'
+
+const router = createRouter({
+  routeTree,
+  defaultPreload: 'intent',
+  defaultStaleTime: 5000,
+})
+```
+
+### Key Router Options
+
+<ParamField path="routeTree" type="AnyRoute" required>
+  The route tree that defines all routes in your application.
+</ParamField>
+
+<ParamField path="basepath" type="string" default="'/'">
+  The base path for the entire router, useful for mounting at a subpath.
+</ParamField>
+
+<ParamField path="history" type="RouterHistory">
+  Custom history implementation. Defaults to `createBrowserHistory()`.
+</ParamField>
+
+<ParamField path="defaultPreload" type="false | 'intent' | 'viewport' | 'render'" default="false">
+  - `false` - No preloading
+  - `'intent'` - Preload on hover or touch
+  - `'viewport'` - Preload when in viewport
+  - `'render'` - Preload when rendered
+</ParamField>
+
+<ParamField path="caseSensitive" type="boolean" default="false">
+  Whether route matching should be case-sensitive.
+</ParamField>
+
+<ParamField path="trailingSlash" type="'always' | 'never' | 'preserve'" default="'never'">
+  How to handle trailing slashes in URLs:
+  - `'always'` - Add trailing slash if not present
+  - `'never'` - Remove trailing slash if present
+  - `'preserve'` - Keep as-is
+</ParamField>
+
+<ParamField path="notFoundMode" type="'root' | 'fuzzy'" default="'fuzzy'">
+  - `'root'` - Show not found at root level
+  - `'fuzzy'` - Show not found at deepest matching parent
+</ParamField>
+
+## Route Matching
+
+The router uses a sophisticated matching algorithm that:
+
+1. **Parses the pathname** into segments
+2. **Matches static segments** exactly
+3. **Extracts path parameters** from dynamic segments
+4. **Handles wildcards** for catch-all routes
+5. **Validates search params** using validators
+6. **Selects the best match** when multiple routes could match
+
+### Path Patterns
+
+```tsx
+// Static route
+path: '/about'
+
+// Path parameter
+path: '/posts/$postId'
+
+// Optional parameter
+path: '/posts/{-$postId}'
+
+// Wildcard (catch-all)
+path: '/files/$'
+```
+
+## Router State
+
+The router maintains state that includes:
+
+```tsx
+interface RouterState {
+  status: 'pending' | 'idle'
+  isLoading: boolean
+  isTransitioning: boolean
+  location: ParsedLocation
+  matches: Array<RouteMatch>
+  pendingMatches?: Array<RouteMatch>
+  cachedMatches: Array<RouteMatch>
+}
+```
+
+Access router state with:
+
+```tsx
+const router = useRouter()
+const { location, matches, isLoading } = router.state
+```
+
+## Navigation Lifecycle
+
+When navigating to a new route, the router:
+
+1. **Matches routes** against the new URL
+2. **Validates search and path params** on each matched route
+3. **Calls `beforeLoad`** hooks in sequence
+4. **Loads data** via `loader` functions in parallel
+5. **Updates state** and renders components
+6. **Handles errors** through error boundaries
+
+## Router Events
+
+Subscribe to navigation lifecycle events:
+
+```tsx
+router.subscribe('onBeforeLoad', (event) => {
+  console.log('Navigating from:', event.fromLocation)
+  console.log('Navigating to:', event.toLocation)
+})
+```
+
+Available events:
+- `onBeforeNavigate` - Before URL changes
+- `onBeforeLoad` - Before data loading starts
+- `onLoad` - After data loading completes
+- `onResolved` - After route is resolved
+- `onRendered` - After components render
+
+## Protocol Allowlist
+
+For security, the router validates URL protocols:
+
+```tsx
+const router = createRouter({
+  routeTree,
+  protocolAllowlist: ['http:', 'https:', 'mailto:', 'tel:'],
+})
+```
+
+Absolute URLs with protocols not in the allowlist will be rejected.
+
+## Rewriting URLs
+
+Advanced use cases can rewrite URLs between the browser and router:
+
+```tsx
+const router = createRouter({
+  routeTree,
+  rewrite: {
+    input: ({ url }) => {
+      // Transform URL before router processes it
+      return url
+    },
+    output: ({ url }) => {
+      // Transform URL before committing to history
+      return url
+    },
+  },
+})
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use Type-Safe Routing">
+    Enable strict TypeScript settings and use route type helpers for full type safety across params, search, and context.
+  </Accordion>
+
+  <Accordion title="Structure Routes Hierarchically">
+    Organize routes to reflect your UI hierarchy. Child routes inherit context and layouts from parents.
+  </Accordion>
+
+  <Accordion title="Configure Preloading">
+    Set `defaultPreload: 'intent'` to automatically preload routes when users hover over links.
+  </Accordion>
+
+  <Accordion title="Handle Errors Gracefully">
+    Define `errorComponent` on routes to catch and display errors in a user-friendly way.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Routes" icon="route" href="./routes">
+    Learn how to define and configure routes
+  </Card>
+  <Card title="Navigation" icon="arrow-pointer" href="./navigation">
+    Navigate between routes programmatically
+  </Card>
+  <Card title="Path Params" icon="brackets-curly" href="./path-params">
+    Extract and validate path parameters
+  </Card>
+  <Card title="Search Params" icon="magnifying-glass" href="./search-params">
+    Work with URL search parameters
+  </Card>
+</CardGroup>

@@ -1,0 +1,487 @@
+---
+title: "ArkType Adapter"
+description: "Validate search parameters with ArkType in TanStack Router"
+---
+
+The ArkType adapter enables type-safe search parameter validation using [ArkType](https://arktype.io), a runtime validation library with TypeScript-like syntax.
+
+## Installation
+
+Install both the ArkType adapter and ArkType itself:
+
+<CodeGroup>
+
+```bash npm
+npm install @tanstack/arktype-adapter arktype
+```
+
+```bash pnpm
+pnpm add @tanstack/arktype-adapter arktype
+```
+
+```bash yarn
+yarn add @tanstack/arktype-adapter arktype
+```
+
+</CodeGroup>
+
+<Note>
+  ArkType requires version `>=2.0.0-rc` and `<3`
+</Note>
+
+## Basic Usage
+
+Import the `arkTypeValidator` function and pass it an ArkType schema:
+
+```tsx
+import { createRoute } from '@tanstack/react-router'
+import { arkTypeValidator } from '@tanstack/arktype-adapter'
+import { type } from 'arktype'
+
+const invoicesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'invoices',
+  validateSearch: arkTypeValidator(
+    type({
+      page: 'number',
+      filter: 'string?',
+    }),
+  ),
+})
+```
+
+Now your search parameters are validated and typed:
+
+```tsx
+function Invoices() {
+  const search = invoicesRoute.useSearch()
+  // search.page is number
+  // search.filter is string | undefined
+  
+  return <div>Page {search.page}</div>
+}
+```
+
+## Why ArkType?
+
+ArkType stands out for its unique approach:
+
+- **TypeScript-like syntax** - Write schemas that look like TypeScript types
+- **Runtime and type-level** - Single source of truth for types and validation
+- **Fast** - Optimized for runtime performance
+- **Concise** - Less boilerplate than other validation libraries
+
+```tsx
+// This is ArkType:
+const user = type({
+  name: 'string',
+  age: 'number',
+  email: 'string.email',
+})
+
+// Looks just like TypeScript!
+type User = {
+  name: string
+  age: number
+  email: string
+}
+```
+
+## Type Syntax
+
+ArkType uses intuitive string-based type definitions:
+
+### Basic Types
+
+```tsx
+import { type } from 'arktype'
+
+arkTypeValidator(
+  type({
+    name: 'string',        // string
+    age: 'number',         // number
+    active: 'boolean',     // boolean
+    data: 'object',        // object
+    items: 'unknown[]',    // array
+  }),
+)
+```
+
+### Optional and Nullable
+
+```tsx
+import { type } from 'arktype'
+
+arkTypeValidator(
+  type({
+    optional: 'string?',        // string | undefined
+    nullable: 'string | null',  // string | null
+    both: 'string | null?',     // string | null | undefined
+  }),
+)
+```
+
+### String Constraints
+
+```tsx
+import { type } from 'arktype'
+
+arkTypeValidator(
+  type({
+    email: 'string.email',           // Email validation
+    url: 'string.url',               // URL validation
+    uuid: 'string.uuid',             // UUID validation
+    minLength: 'string>3',           // Min length 3
+    maxLength: 'string<=20',         // Max length 20
+    range: 'string>=3<=20',          // Between 3 and 20
+    pattern: 'string.matches(/^[A-Z]+$/)',  // Regex pattern
+  }),
+)
+```
+
+### Number Constraints
+
+```tsx
+import { type } from 'arktype'
+
+arkTypeValidator(
+  type({
+    positive: 'number>0',            // Greater than 0
+    page: 'number>=1',               // At least 1
+    percentage: 'number>=0<=100',    // Between 0 and 100
+    integer: 'integer',              // Whole numbers only
+    positiveInt: 'integer>0',        // Positive integers
+  }),
+)
+```
+
+### Literals and Unions
+
+```tsx
+import { type } from 'arktype'
+
+arkTypeValidator(
+  type({
+    role: "'admin' | 'user' | 'guest'",  // String literal union
+    status: "'active' | 'inactive'",     // Status enum
+    port: '80 | 443 | 8080',             // Number literal union
+  }),
+)
+```
+
+### Arrays
+
+```tsx
+import { type } from 'arktype'
+
+arkTypeValidator(
+  type({
+    tags: 'string[]',                    // Array of strings
+    numbers: 'number[]',                 // Array of numbers
+    roles: "('admin' | 'user')[]",       // Array of union
+    minItems: 'string[]>=1',             // At least 1 item
+    maxItems: 'string[]<=10',            // At most 10 items
+  }),
+)
+```
+
+### Nested Objects
+
+```tsx
+import { type } from 'arktype'
+
+arkTypeValidator(
+  type({
+    user: {
+      name: 'string',
+      email: 'string.email',
+      settings: {
+        theme: "'light' | 'dark'",
+        notifications: 'boolean',
+      },
+    },
+  }),
+)
+```
+
+## Default Values
+
+ArkType supports default values with the `=` operator:
+
+```tsx
+import { type } from 'arktype'
+
+arkTypeValidator(
+  type({
+    'page?': 'number = 1',
+    'limit?': 'number = 25',
+    'sort?': "'asc' | 'desc' = 'asc'",
+  }),
+)
+```
+
+## Transformations
+
+ArkType allows you to transform values during parsing:
+
+```tsx
+import { type } from 'arktype'
+
+arkTypeValidator(
+  type({
+    // String to Date
+    createdAt: 'string',  // Then use .pipe() for transformation
+    
+    // String to number
+    price: 'string.numeric',  // Validates numeric string
+  }),
+)
+```
+
+## Type Safety
+
+ArkType provides excellent type inference:
+
+```tsx
+import { type } from 'arktype'
+
+const schema = type({
+  page: 'number',
+  filter: 'string?',
+})
+
+const route = createRoute({
+  path: '/search',
+  validateSearch: arkTypeValidator(schema),
+})
+
+// Fully typed in components
+function SearchPage() {
+  const { page, filter } = route.useSearch()
+  //      ^? number
+  //            ^? string | undefined
+}
+
+// Typed navigation
+<Link 
+  to="/search" 
+  search={{ 
+    page: 1,  // ✓ Valid
+    filter: 'active',  // ✓ Valid
+    // @ts-expect-error - invalid is not in schema
+    invalid: true,  // ✗ Type error
+  }}
+>
+  Search
+</Link>
+```
+
+## Custom Validation
+
+Create reusable type definitions:
+
+```tsx
+import { type } from 'arktype'
+
+// Define custom types
+const email = type('string.email')
+const positiveInt = type('integer>0')
+const status = type("'active' | 'pending' | 'completed'")
+
+// Use in validator
+arkTypeValidator(
+  type({
+    email,
+    count: positiveInt,
+    status,
+  }),
+)
+```
+
+## Validation Methods
+
+ArkType schemas provide multiple validation methods:
+
+```tsx
+import { type } from 'arktype'
+
+const schema = type({
+  page: 'number',
+})
+
+// assert() - Throws on error (used by adapter)
+const data = schema.assert({ page: 1 })
+
+// parse() - Returns result object
+const result = schema(input)
+if (result instanceof type.errors) {
+  // Handle errors
+} else {
+  // Use validated data
+}
+```
+
+## Error Handling
+
+When validation fails, ArkType provides detailed error information:
+
+```tsx
+import { type } from 'arktype'
+
+// This will fail if page is not a valid number
+arkTypeValidator(
+  type({
+    page: 'number',
+  }),
+)
+
+// Errors include:
+// - Path to invalid field
+// - Expected type
+// - Actual value received
+```
+
+## Real-World Example
+
+Here's a complete example with pagination, filtering, and sorting:
+
+```tsx
+import { createRoute, Link } from '@tanstack/react-router'
+import { arkTypeValidator } from '@tanstack/arktype-adapter'
+import { type } from 'arktype'
+
+const invoicesSearchSchema = type({
+  'page?': 'integer>=1 = 1',
+  'limit?': 'integer>=10<=100 = 25',
+  'sort?': "'date' | 'amount' | 'customer' = 'date'",
+  'order?': "'asc' | 'desc' = 'desc'",
+  'status?': "'paid' | 'pending' | 'overdue'",
+  'search?': 'string',
+})
+
+const invoicesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: 'invoices',
+  validateSearch: arkTypeValidator(invoicesSearchSchema),
+  component: Invoices,
+})
+
+function Invoices() {
+  const search = invoicesRoute.useSearch()
+  
+  return (
+    <div>
+      <h1>Invoices - Page {search.page}</h1>
+      
+      <Link
+        to="/invoices"
+        search={{
+          ...search,
+          page: search.page + 1,
+        }}
+      >
+        Next Page
+      </Link>
+      
+      <Link
+        to="/invoices"
+        search={{
+          ...search,
+          status: 'overdue',
+        }}
+      >
+        Show Overdue
+      </Link>
+    </div>
+  )
+}
+```
+
+## Type Inference
+
+Extract types from ArkType schemas:
+
+```tsx
+import { type } from 'arktype'
+
+const schema = type({
+  name: 'string',
+  age: 'number',
+})
+
+// Infer input type
+type Input = typeof schema.infer
+//   ^? { name: string; age: number }
+
+// Infer output type (after transformations)
+type Output = typeof schema.inferIn
+//   ^? { name: string; age: number }
+```
+
+## API Reference
+
+### `arkTypeValidator(schema)`
+
+Creates a validator adapter from an ArkType schema.
+
+**Parameters:**
+- `schema` - An ArkType type definition
+
+**Returns:**
+- A `ValidatorAdapter` that can be used with `validateSearch`
+
+**Type Inference:**
+- Input type: Inferred from `schema['inferIn']`
+- Output type: Inferred from `schema['infer']`
+
+## Comparison with Other Libraries
+
+<CodeGroup>
+
+```tsx ArkType
+import { type } from 'arktype'
+
+const schema = type({
+  email: 'string.email',
+  age: 'integer>0',
+  role: "'admin' | 'user'",
+})
+```
+
+```tsx Zod
+import { z } from 'zod'
+
+const schema = z.object({
+  email: z.string().email(),
+  age: z.number().int().positive(),
+  role: z.enum(['admin', 'user']),
+})
+```
+
+```tsx Valibot
+import * as v from 'valibot'
+
+const schema = v.object({
+  email: v.pipe(v.string(), v.email()),
+  age: v.pipe(v.number(), v.integer(), v.minValue(1)),
+  role: v.picklist(['admin', 'user']),
+})
+```
+
+</CodeGroup>
+
+ArkType's syntax is more concise and closely resembles TypeScript types.
+
+## Next Steps
+
+<CardGroup cols={2}>
+
+<Card title="Zod Adapter" icon="z" href="/router/validation/zod">
+  Most popular validation library
+</Card>
+
+<Card title="Valibot Adapter" icon="v" href="/router/validation/valibot">
+  Lightweight modular validation
+</Card>
+
+</CardGroup>

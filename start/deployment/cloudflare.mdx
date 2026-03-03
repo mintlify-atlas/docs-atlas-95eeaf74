@@ -1,0 +1,271 @@
+---
+title: Deploy to Cloudflare Workers
+description: Deploy your TanStack Start application to Cloudflare Workers
+---
+
+Cloudflare Workers is a serverless platform that runs your code on Cloudflare's global edge network. TanStack Start applications can be deployed to Cloudflare Workers with just a few configuration steps.
+
+## Prerequisites
+
+- A Cloudflare account ([sign up here](https://dash.cloudflare.com/sign-up))
+- Node.js and pnpm (or npm/yarn) installed
+- A TanStack Start application
+
+## Installation
+
+Install the required dependencies for Cloudflare Workers deployment:
+
+```bash
+pnpm add -D @cloudflare/vite-plugin wrangler
+```
+
+## Configuration
+
+### 1. Update Vite Config
+
+Add the Cloudflare plugin to your `vite.config.ts` file:
+
+```ts
+import { defineConfig } from 'vite'
+import { tanstackStart } from '@tanstack/react-start/plugin/vite'
+import { cloudflare } from '@cloudflare/vite-plugin'
+import viteReact from '@vitejs/plugin-react'
+
+export default defineConfig({
+  plugins: [
+    cloudflare({ viteEnvironment: { name: 'ssr' } }),
+    tanstackStart(),
+    viteReact(),
+  ],
+})
+```
+
+<Note>
+  The `cloudflare` plugin must be placed before `tanstackStart()` in the plugins array.
+</Note>
+
+### 2. Create Wrangler Configuration
+
+Create a `wrangler.jsonc` file in your project root:
+
+```json
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tanstack-start-app",
+  "compatibility_date": "2025-09-02",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "@tanstack/react-start/server-entry"
+}
+```
+
+### 3. Update Package Scripts
+
+Modify the scripts in your `package.json`:
+
+```json
+{
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build && tsc --noEmit",
+    "preview": "vite preview",
+    "deploy": "npm run build && wrangler deploy",
+    "cf-typegen": "wrangler types"
+  }
+}
+```
+
+## Environment Variables
+
+You can add environment variables to your `wrangler.jsonc` file:
+
+```json
+{
+  "vars": {
+    "MY_VAR": "Hello from Cloudflare",
+    "API_URL": "https://api.example.com"
+  }
+}
+```
+
+For secrets, use the Wrangler CLI:
+
+```bash
+pnpm dlx wrangler secret put SECRET_NAME
+```
+
+## Accessing Cloudflare Bindings
+
+You can access Cloudflare bindings (KV, D1, R2, etc.) in your server functions:
+
+```ts
+import { env } from 'cloudflare:workers'
+
+export const getServerData = async () => {
+  // Access environment variables
+  const myVar = env.MY_VAR
+  
+  // Access KV namespace
+  const value = await env.MY_KV_NAMESPACE.get('key')
+  
+  return { myVar, value }
+}
+```
+
+## Type Generation
+
+Generate TypeScript types for your Cloudflare bindings:
+
+```bash
+pnpm run cf-typegen
+```
+
+This creates a `worker-configuration.d.ts` file with type definitions for your environment.
+
+## Deployment
+
+### Authentication
+
+First, authenticate with your Cloudflare account:
+
+```bash
+pnpm dlx wrangler login
+```
+
+To check your current authentication status:
+
+```bash
+pnpm dlx wrangler whoami
+```
+
+### Deploy to Production
+
+Deploy your application:
+
+```bash
+pnpm run deploy
+```
+
+This will:
+1. Build your application with Vite
+2. Run TypeScript type checking
+3. Deploy to Cloudflare Workers
+
+After deployment, Wrangler will provide a URL where your application is live.
+
+## Advanced Configuration
+
+### Custom Routes
+
+Configure custom routes in `wrangler.jsonc`:
+
+```json
+{
+  "routes": [
+    {
+      "pattern": "example.com/*",
+      "custom_domain": true
+    }
+  ]
+}
+```
+
+### Workers KV
+
+Add KV namespaces to your configuration:
+
+```json
+{
+  "kv_namespaces": [
+    {
+      "binding": "MY_KV_NAMESPACE",
+      "id": "your-kv-namespace-id"
+    }
+  ]
+}
+```
+
+### D1 Database
+
+Add D1 database bindings:
+
+```json
+{
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "my-database",
+      "database_id": "your-database-id"
+    }
+  ]
+}
+```
+
+### R2 Storage
+
+Add R2 bucket bindings:
+
+```json
+{
+  "r2_buckets": [
+    {
+      "binding": "MY_BUCKET",
+      "bucket_name": "my-bucket"
+    }
+  ]
+}
+```
+
+## Preview Deployments
+
+Test your deployment before going to production:
+
+```bash
+pnpm run build
+pnpm dlx wrangler deploy --dry-run
+```
+
+## Local Development
+
+During development, use Vite's dev server:
+
+```bash
+pnpm dev
+```
+
+For testing with Cloudflare-specific features locally, you can use:
+
+```bash
+pnpm dlx wrangler dev
+```
+
+## Resources
+
+- [Cloudflare Workers Documentation](https://developers.cloudflare.com/workers/)
+- [Wrangler CLI Documentation](https://developers.cloudflare.com/workers/wrangler/)
+- [TanStack Start Cloudflare Example](https://github.com/TanStack/router/tree/main/examples/react/start-basic-cloudflare)
+- [Cloudflare Platform Bindings](https://developers.cloudflare.com/workers/runtime-apis/bindings/)
+
+## Troubleshooting
+
+### Build Errors
+
+If you encounter build errors, ensure:
+- All dependencies are installed: `pnpm install`
+- TypeScript compiles without errors: `pnpm tsc --noEmit`
+- The `@cloudflare/vite-plugin` is placed before `tanstackStart()` in plugins
+
+### Deployment Errors
+
+If deployment fails:
+- Check your authentication: `pnpm dlx wrangler whoami`
+- Verify your `wrangler.jsonc` configuration is valid
+- Ensure compatibility date is recent
+- Check Cloudflare dashboard for quota limits
+
+### Runtime Errors
+
+If your app fails at runtime:
+- Check the Cloudflare Workers logs in your dashboard
+- Verify all required bindings are configured
+- Ensure `nodejs_compat` flag is enabled for Node.js APIs
+- Test locally with `wrangler dev` before deploying

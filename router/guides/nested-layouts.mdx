@@ -1,0 +1,325 @@
+---
+title: Nested layouts
+description: Build complex UIs with nested route layouts and shared components
+---
+
+Nested layouts allow you to create hierarchical UI structures where parent routes wrap child routes, enabling shared layouts, navigation, and state across route segments.
+
+## Basic nested layouts
+
+Use the `Outlet` component to render child routes:
+
+```tsx
+import { createFileRoute, Outlet } from '@tanstack/react-router'
+
+export const Route = createFileRoute('/dashboard')({
+  component: DashboardLayout,
+})
+
+function DashboardLayout() {
+  return (
+    <div className="dashboard">
+      <aside className="sidebar">
+        <nav>
+          <Link to="/dashboard">Overview</Link>
+          <Link to="/dashboard/analytics">Analytics</Link>
+          <Link to="/dashboard/settings">Settings</Link>
+        </nav>
+      </aside>
+      <main className="content">
+        <Outlet /> {/* Child routes render here */}
+      </main>
+    </div>
+  )
+}
+```
+
+## File-based layout structure
+
+Organize layouts using file structure:
+
+```
+src/routes/
+  __root.tsx              -> Root layout (wraps everything)
+  index.tsx               -> Home page
+  dashboard.tsx           -> Dashboard layout
+  dashboard/index.tsx     -> /dashboard (uses dashboard.tsx layout)
+  dashboard/analytics.tsx -> /dashboard/analytics
+  dashboard/settings.tsx  -> /dashboard/settings
+```
+
+## Pathless layouts
+
+Create layouts that don't add to the URL path using `_` prefix:
+
+```
+src/routes/
+  _auth.tsx               -> Auth layout (no path segment)
+  _auth/login.tsx         -> /login (with auth layout)
+  _auth/register.tsx      -> /register (with auth layout)
+```
+
+```tsx src/routes/_auth.tsx
+import { createFileRoute, Outlet } from '@tanstack/react-router'
+
+export const Route = createFileRoute('/_auth')({
+  component: AuthLayout,
+})
+
+function AuthLayout() {
+  return (
+    <div className="auth-container">
+      <div className="auth-header">
+        <img src="/logo.svg" alt="Logo" />
+      </div>
+      <Outlet />
+      <footer>© 2024 Company</footer>
+    </div>
+  )
+}
+```
+
+## Multiple layout levels
+
+Nest layouts within layouts:
+
+```tsx
+// Level 1: Root layout
+export const Route = createRootRoute({
+  component: () => (
+    <>
+      <header>Global Header</header>
+      <Outlet />
+      <footer>Global Footer</footer>
+    </>
+  ),
+})
+
+// Level 2: Dashboard layout
+export const DashboardRoute = createFileRoute('/dashboard')({
+  component: () => (
+    <div className="dashboard">
+      <Sidebar />
+      <Outlet /> {/* Nested routes */}
+    </div>
+  ),
+})
+
+// Level 3: Settings layout
+export const SettingsRoute = createFileRoute('/dashboard/settings')({
+  component: () => (
+    <div className="settings">
+      <SettingsTabs />
+      <Outlet /> {/* Nested settings pages */}
+    </div>
+  ),
+})
+```
+
+## Layout with shared data
+
+Load data in parent and access in children:
+
+```tsx src/routes/dashboard.tsx
+export const Route = createFileRoute('/dashboard')({
+  loader: async () => {
+    const user = await fetchCurrentUser()
+    return { user }
+  },
+  component: DashboardLayout,
+})
+
+function DashboardLayout() {
+  const { user } = Route.useLoaderData()
+  
+  return (
+    <div>
+      <header>
+        <h1>Welcome, {user.name}</h1>
+      </header>
+      <Outlet />
+    </div>
+  )
+}
+```
+
+```tsx src/routes/dashboard/settings.tsx
+export const Route = createFileRoute('/dashboard/settings')({
+  component: Settings,
+})
+
+function Settings() {
+  const navigate = useNavigate()
+  const { user } = Route.useRouteContext()
+  // Access parent's loader data via context
+  
+  return <div>Settings for {user.name}</div>
+}
+```
+
+## Layout context
+
+Share state between parent and child routes:
+
+```tsx src/routes/dashboard.tsx
+import { createContext, useContext, useState } from 'react'
+
+const DashboardContext = createContext<{
+  sidebarOpen: boolean
+  toggleSidebar: () => void
+} | null>(null)
+
+export const Route = createFileRoute('/dashboard')({
+  component: DashboardLayout,
+})
+
+function DashboardLayout() {
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+  
+  const toggleSidebar = () => setSidebarOpen((open) => !open)
+  
+  return (
+    <DashboardContext.Provider value={{ sidebarOpen, toggleSidebar }}>
+      <div className={sidebarOpen ? 'sidebar-open' : 'sidebar-closed'}>
+        <Sidebar />
+        <Outlet />
+      </div>
+    </DashboardContext.Provider>
+  )
+}
+
+// Use in child routes
+function ChildComponent() {
+  const { sidebarOpen, toggleSidebar } = useContext(DashboardContext)!
+  return <button onClick={toggleSidebar}>Toggle Sidebar</button>
+}
+```
+
+## Active link styling
+
+Highlight active navigation items:
+
+```tsx
+function Sidebar() {
+  return (
+    <nav>
+      <Link
+        to="/dashboard"
+        activeProps={{
+          className: 'active',
+        }}
+        activeOptions={{
+          exact: true, // Only active for exact match
+        }}
+      >
+        Overview
+      </Link>
+      <Link
+        to="/dashboard/analytics"
+        activeProps={{
+          className: 'active',
+        }}
+      >
+        Analytics
+      </Link>
+    </nav>
+  )
+}
+```
+
+## Layout groups
+
+Group routes without affecting the URL:
+
+```
+src/routes/
+  (marketing)/
+    index.tsx          -> /
+    about.tsx          -> /about
+    pricing.tsx        -> /pricing
+  (app)/
+    dashboard.tsx      -> /dashboard
+    settings.tsx       -> /settings
+```
+
+## Conditional layouts
+
+Render different layouts based on conditions:
+
+```tsx
+export const Route = createFileRoute('/content/$id')({
+  component: ContentLayout,
+})
+
+function ContentLayout() {
+  const { id } = Route.useParams()
+  const { user } = Route.useRouteContext()
+  
+  // Use admin layout for admin users
+  if (user.role === 'admin') {
+    return (
+      <AdminLayout>
+        <Outlet />
+      </AdminLayout>
+    )
+  }
+  
+  // Use standard layout for regular users
+  return (
+    <StandardLayout>
+      <Outlet />
+    </StandardLayout>
+  )
+}
+```
+
+## Pending states in layouts
+
+Show loading states while child routes load:
+
+```tsx
+import { Outlet, useRouterState } from '@tanstack/react-router'
+
+function DashboardLayout() {
+  const isLoading = useRouterState({ select: (s) => s.isLoading })
+  
+  return (
+    <div>
+      <Sidebar />
+      <main>
+        {isLoading && <LoadingBar />}
+        <Outlet />
+      </main>
+    </div>
+  )
+}
+```
+
+## Best practices
+
+<Accordion title="Keep layouts minimal">
+Layouts should focus on structure and shared UI, not business logic.
+</Accordion>
+
+<Accordion title="Use pathless routes for auth">
+Wrap protected routes in pathless layouts for clean URLs.
+</Accordion>
+
+<Accordion title="Load shared data in parent">
+Avoid duplicate data fetching by loading once in the layout.
+</Accordion>
+
+<Accordion title="Leverage layout context">
+Use React Context for sharing state between layouts and children.
+</Accordion>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Data loading" icon="database" href="/router/guides/data-loading">
+    Share data between layouts
+  </Card>
+  <Card title="Routes concept" icon="route" href="/router/concepts/routes">
+    Deep dive into route configuration
+  </Card>
+</CardGroup>

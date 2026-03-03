@@ -1,122 +1,161 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "TanStack Router",
+  "theme": "sequoia",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#00C9A7",
+    "light": "#84E1D4",
+    "dark": "#008F75"
   },
-  "favicon": "/favicon.svg",
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/tanstack/router"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/tanstack/router"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Router",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Get Started",
             "pages": [
-              "index",
-              "quickstart",
-              "development"
+              "router/introduction",
+              "router/installation",
+              "router/quickstart"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Core Concepts",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "router/concepts/routing",
+              "router/concepts/routes",
+              "router/concepts/navigation",
+              "router/concepts/search-params",
+              "router/concepts/path-params",
+              "router/concepts/loaders",
+              "router/concepts/type-safety"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Guides",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "router/guides/file-based-routing",
+              "router/guides/code-based-routing",
+              "router/guides/data-loading",
+              "router/guides/error-handling",
+              "router/guides/nested-layouts",
+              "router/guides/code-splitting",
+              "router/guides/scroll-restoration",
+              "router/guides/authentication",
+              "router/guides/ssr",
+              "router/guides/devtools"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Router API",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "router/api/router",
+              "router/api/route",
+              "router/api/file-route",
+              "router/api/link",
+              "router/api/hooks"
+            ]
+          },
+          {
+            "group": "Framework Support",
+            "pages": [
+              "router/frameworks/react",
+              "router/frameworks/solid",
+              "router/frameworks/vue"
+            ]
+          },
+          {
+            "group": "Plugins & Tools",
+            "pages": [
+              "router/plugins/vite",
+              "router/plugins/webpack",
+              "router/plugins/esbuild",
+              "router/plugins/rspack",
+              "router/tools/cli",
+              "router/tools/eslint-plugin"
+            ]
+          },
+          {
+            "group": "Validation",
+            "pages": [
+              "router/validation/overview",
+              "router/validation/zod",
+              "router/validation/valibot",
+              "router/validation/arktype"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "Start",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Get Started",
             "pages": [
-              "api-reference/introduction"
+              "start/introduction",
+              "start/installation",
+              "start/quickstart"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Core Concepts",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "start/concepts/server-rendering",
+              "start/concepts/server-functions",
+              "start/concepts/streaming",
+              "start/concepts/deployment"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "start/guides/server-functions",
+              "start/guides/ssr-streaming",
+              "start/guides/middleware",
+              "start/guides/deployment",
+              "start/guides/static-generation"
+            ]
+          },
+          {
+            "group": "Start API",
+            "pages": [
+              "start/api/server-functions",
+              "start/api/middleware",
+              "start/api/client-rpc",
+              "start/api/server-rpc"
+            ]
+          },
+          {
+            "group": "Framework Support",
+            "pages": [
+              "start/frameworks/react",
+              "start/frameworks/solid",
+              "start/frameworks/vue"
+            ]
+          },
+          {
+            "group": "Deployment",
+            "pages": [
+              "start/deployment/cloudflare",
+              "start/deployment/netlify",
+              "start/deployment/vercel",
+              "start/deployment/node"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

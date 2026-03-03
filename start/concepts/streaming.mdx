@@ -1,0 +1,487 @@
+---
+title: Streaming
+description: Stream HTML and data progressively to improve perceived performance
+---
+
+Streaming allows your application to send content to the browser progressively as it becomes ready, rather than waiting for the entire page to render. This dramatically improves perceived performance and time-to-interactive.
+
+## Why Streaming?
+
+Traditional SSR waits for the entire page to render before sending any content:
+
+```
+Browser Request → Wait for all data → Wait for full render → Send HTML → Display page
+         ↓                                                    ↑
+      500ms                                               2000ms
+```
+
+With streaming, the browser receives and displays content as it renders:
+
+```
+Browser Request → Send initial HTML → Send more HTML → Send final HTML
+         ↓              ↓                  ↓               ↓
+      50ms          200ms              500ms          1000ms
+      Display!    Display more!    Display more!    Complete!
+```
+
+**Benefits:**
+- Faster First Contentful Paint (FCP)
+- Better Time to Interactive (TTI)
+- Improved perceived performance
+- Better user experience on slow connections
+
+## Enabling Streaming
+
+Use the `defaultStreamHandler` instead of `defaultRenderHandler`:
+
+```tsx app/server.ts
+import { createStartHandler } from '@tanstack/react-start-server'
+import { defaultStreamHandler } from '@tanstack/react-start-server'
+
+// Enable streaming (recommended)
+export default createStartHandler(defaultStreamHandler)
+```
+
+Compare with non-streaming (string rendering):
+
+```tsx
+import { defaultRenderHandler } from '@tanstack/react-start-server'
+
+// No streaming - waits for complete render
+export default createStartHandler(defaultRenderHandler)
+```
+
+## How Streaming Works
+
+TanStack Start uses React's streaming SSR capabilities:
+
+### 1. Initial HTML Shell
+
+The server immediately sends the HTML shell:
+
+```html
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="/assets/app.css" />
+  </head>
+  <body>
+    <div id="root">
+```
+
+The browser can parse and display this immediately, showing layout and loading states.
+
+### 2. Component Streaming
+
+As components render, their HTML streams to the browser:
+
+```tsx
+function App() {
+  return (
+    <div>
+      <Header />         {/* Sends immediately */}
+      <Suspense fallback={<Spinner />}>
+        <Posts />        {/* Sends when data loads */}
+      </Suspense>
+      <Footer />         {/* Sends immediately */}
+    </div>
+  )
+}
+```
+
+### 3. Suspense Boundaries
+
+React Suspense enables selective streaming:
+
+```tsx
+import { Suspense } from 'react'
+
+function Dashboard() {
+  return (
+    <div>
+      <h1>Dashboard</h1>
+      
+      <Suspense fallback={<div>Loading stats...</div>}>
+        <Stats />  {/* Can load independently */}
+      </Suspense>
+      
+      <Suspense fallback={<div>Loading activity...</div>}>
+        <Activity />  {/* Can load independently */}
+      </Suspense>
+    </div>
+  )
+}
+```
+
+**Flow:**
+1. Server sends `<h1>Dashboard</h1>` immediately
+2. Server sends both `<div>Loading stats...</div>` and `<div>Loading activity...</div>`
+3. When `Stats` data loads, server sends `<Stats />` HTML and inline script to replace fallback
+4. When `Activity` data loads, server sends `<Activity />` HTML and inline script to replace fallback
+
+### 4. Hydration After Streaming
+
+After HTML arrives, React hydrates the page:
+
+```tsx app/client.tsx
+import { hydrateStart } from '@tanstack/react-start-client'
+import { StartClient } from '@tanstack/react-start-client'
+import { hydrateRoot } from 'react-dom/client'
+
+async function hydrate() {
+  const router = await hydrateStart()
+  hydrateRoot(document, <StartClient router={router} />)
+}
+
+hydrate()
+```
+
+The client:
+1. Reads serialized state from the HTML
+2. Attaches event listeners
+3. Makes the page fully interactive
+
+## Streaming Server Functions
+
+Server functions can also stream responses:
+
+### Async Generators
+
+Use generator functions to stream data:
+
+```tsx
+import { createServerFn } from '@tanstack/start-client-core'
+
+const streamLogs = createServerFn()
+  .method('GET')
+  .handler(async function* () {
+    const logs = await getLogs()
+    for (const log of logs) {
+      yield log
+      // Optional: add delay between chunks
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+  })
+
+function LogViewer() {
+  const [logs, setLogs] = React.useState([])
+
+  React.useEffect(() => {
+    const loadLogs = async () => {
+      for await (const log of streamLogs()) {
+        setLogs(prev => [...prev, log])
+      }
+    }
+    loadLogs()
+  }, [])
+
+  return (
+    <ul>
+      {logs.map(log => <li key={log.id}>{log.message}</li>)}
+    </ul>
+  )
+}
+```
+
+### ReadableStream
+
+Return a `ReadableStream` for binary data streaming:
+
+```tsx
+const downloadFile = createServerFn()
+  .method('GET')
+  .handler(async ({ data }) => {
+    const stream = new ReadableStream({
+      async start(controller) {
+        const file = await fs.readFile(data.path)
+        const chunkSize = 1024 * 64 // 64KB chunks
+        
+        for (let i = 0; i < file.length; i += chunkSize) {
+          const chunk = file.slice(i, i + chunkSize)
+          controller.enqueue(chunk)
+        }
+        
+        controller.close()
+      }
+    })
+    
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'application/octet-stream',
+        'Content-Disposition': `attachment; filename="${data.filename}"`,
+      },
+    })
+  })
+```
+
+## Frame Protocol
+
+For advanced streaming scenarios, TanStack Start uses a binary frame protocol to multiplex JSON and raw streams:
+
+### Protocol Format
+
+Each frame has a header:
+```
+[type:1 byte][streamId:4 bytes][length:4 bytes][payload:variable]
+```
+
+**Frame types:**
+- `0` - JSON data (streamId 0)
+- `1` - Raw stream chunk (streamId > 0)
+- `2` - Stream end (streamId > 0)
+- `3` - Stream error (streamId > 0)
+
+### Internal Implementation
+
+The frame protocol is used internally when server functions return both serialized data and raw streams:
+
+```tsx
+// Internal: how TanStack Start handles mixed content
+const multiplexedStream = createMultiplexedStream(
+  jsonStream,    // Serialized data (NDJSON)
+  rawStreams,    // Map of binary streams
+)
+
+return new Response(multiplexedStream, {
+  headers: {
+    'Content-Type': 'application/x-tanstack-start-framed-v1',
+  },
+})
+```
+
+The client automatically decodes frames and reconstructs the data.
+
+## Streaming Patterns
+
+### Progressive Data Loading
+
+Load and display data progressively:
+
+```tsx
+export const Route = createFileRoute('/feed')({
+  component: Feed,
+  loader: async () => {
+    // Only load initial posts - more load on scroll
+    const posts = await fetchPosts({ limit: 10 })
+    return { posts }
+  },
+})
+
+function Feed() {
+  const { posts: initialPosts } = Route.useLoaderData()
+  const [posts, setPosts] = React.useState(initialPosts)
+  const [loading, setLoading] = React.useState(false)
+
+  const loadMore = async () => {
+    setLoading(true)
+    const morePosts = await fetchMorePosts({ offset: posts.length })
+    setPosts([...posts, ...morePosts])
+    setLoading(false)
+  }
+
+  return (
+    <div>
+      {posts.map(post => <Post key={post.id} post={post} />)}
+      {loading ? <Spinner /> : <button onClick={loadMore}>Load More</button>}
+    </div>
+  )
+}
+```
+
+### Parallel Data Fetching
+
+Load independent sections in parallel:
+
+```tsx
+function Dashboard() {
+  return (
+    <div>
+      <Suspense fallback={<Skeleton />}>
+        <UserStats />     {/* Loads independently */}
+      </Suspense>
+      
+      <Suspense fallback={<Skeleton />}>
+        <RecentActivity /> {/* Loads independently */}
+      </Suspense>
+      
+      <Suspense fallback={<Skeleton />}>
+        <Notifications />  {/* Loads independently */}
+      </Suspense>
+    </div>
+  )
+}
+
+function UserStats() {
+  const stats = use(fetchStats()) // React 'use' hook
+  return <div>{/* Render stats */}</div>
+}
+```
+
+### Nested Suspense
+
+Create sophisticated loading experiences:
+
+```tsx
+function Article() {
+  return (
+    <Suspense fallback={<ArticleSkeleton />}>
+      <ArticleContent />
+      
+      <Suspense fallback={<div>Loading comments...</div>}>
+        <Comments />
+        
+        <Suspense fallback={<div>Loading replies...</div>}>
+          <Replies />
+        </Suspense>
+      </Suspense>
+    </Suspense>
+  )
+}
+```
+
+## Performance Optimization
+
+### Chunk Size
+
+Control streaming chunk size for optimal performance:
+
+```tsx
+const stream = new ReadableStream({
+  async start(controller) {
+    const chunkSize = 1024 * 16 // 16KB - balance between overhead and latency
+    // ...
+  }
+})
+```
+
+### Selective Streaming
+
+Don't stream everything - use Suspense strategically:
+
+```tsx
+// Good: Stream slow content
+<Suspense fallback={<Skeleton />}>
+  <SlowDatabaseQuery />
+</Suspense>
+
+// Avoid: Don't wrap fast content
+<div>This is fast, no need for Suspense</div>
+```
+
+### Preloading Critical Data
+
+Load critical data in route loaders:
+
+```tsx
+export const Route = createFileRoute('/post/$id')({
+  loader: async ({ params }) => {
+    // Loads during navigation, streams during SSR
+    const post = await fetchPost(params.id)
+    return { post }
+  },
+  component: Post,
+})
+```
+
+## Debugging Streaming
+
+Streaming can be harder to debug. Use these techniques:
+
+### Log Stream Events
+
+```tsx
+const stream = new ReadableStream({
+  start(controller) {
+    console.log('Stream started')
+  },
+  async pull(controller) {
+    console.log('Pulling next chunk')
+    // ...
+  },
+  cancel() {
+    console.log('Stream cancelled')
+  }
+})
+```
+
+### Network Inspection
+
+In browser DevTools:
+1. Open Network tab
+2. Click on the streaming request
+3. Watch the Response tab update in real-time
+
+### Disable Streaming Temporarily
+
+Switch to string rendering to debug:
+
+```tsx
+import { defaultRenderHandler } from '@tanstack/react-start-server'
+
+// Temporarily disable streaming
+export default createStartHandler(defaultRenderHandler)
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use streaming by default">
+    Streaming improves perceived performance for most applications:
+    
+    ```tsx
+    export default createStartHandler(defaultStreamHandler)
+    ```
+  </Accordion>
+
+  <Accordion title="Add Suspense boundaries strategically">
+    Wrap slow-loading content, not everything:
+    
+    ```tsx
+    <Suspense fallback={<Skeleton />}>
+      <SlowComponent />  {/* Takes 2+ seconds to load */}
+    </Suspense>
+    ```
+  </Accordion>
+
+  <Accordion title="Provide meaningful loading states">
+    Show skeletons that match final content:
+    
+    ```tsx
+    function PostSkeleton() {
+      return (
+        <div>
+          <div className="skeleton-title" />
+          <div className="skeleton-text" />
+          <div className="skeleton-text" />
+        </div>
+      )
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Test on slow connections">
+    Use browser DevTools to throttle network speed and test streaming behavior.
+  </Accordion>
+
+  <Accordion title="Monitor streaming metrics">
+    Track First Contentful Paint (FCP) and Time to Interactive (TTI) to measure streaming impact.
+  </Accordion>
+</AccordionGroup>
+
+## Related Concepts
+
+<CardGroup cols={2}>
+  <Card title="Server Rendering" icon="server" href="/start/concepts/server-rendering">
+    Learn how SSR enables streaming
+  </Card>
+  <Card title="Server Functions" icon="function" href="/start/concepts/server-functions">
+    Stream data from server functions
+  </Card>
+  <Card title="SSR & Streaming Guide" icon="book" href="/start/guides/ssr-streaming">
+    Complete guide to SSR and streaming
+  </Card>
+  <Card title="Deployment" icon="rocket" href="/start/concepts/deployment">
+    Deploy streaming applications
+  </Card>
+</CardGroup>

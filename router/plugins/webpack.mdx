@@ -1,0 +1,303 @@
+---
+title: Webpack Plugin
+---
+
+# Webpack Plugin
+
+The TanStack Router Webpack plugin provides integration with Webpack, enabling route generation and code splitting for your router application.
+
+## Installation
+
+```bash
+npm install @tanstack/router-plugin
+```
+
+## Basic Usage
+
+Add the plugin to your `webpack.config.js`:
+
+```js
+const TanStackRouterWebpack = require('@tanstack/router-plugin/webpack').default
+
+module.exports = {
+  // ... other webpack config
+  plugins: [TanStackRouterWebpack()],
+}
+```
+
+Or using ES modules:
+
+```js
+import TanStackRouterWebpack from '@tanstack/router-plugin/webpack'
+
+export default {
+  // ... other webpack config
+  plugins: [TanStackRouterWebpack()],
+}
+```
+
+## Configuration
+
+The plugin accepts the same configuration options as the Vite plugin:
+
+```js
+import TanStackRouterWebpack from '@tanstack/router-plugin/webpack'
+
+export default {
+  plugins: [
+    TanStackRouterWebpack({
+      // Route generation options
+      routesDirectory: './src/routes',
+      generatedRouteTree: './src/routeTree.gen.ts',
+      
+      // Code splitting options
+      codeSplittingOptions: {
+        defaultBehavior: [
+          ['component'],
+          ['pendingComponent'],
+          ['errorComponent'],
+          ['notFoundComponent']
+        ],
+        addHmr: true
+      },
+      
+      // TypeScript options
+      disableTypes: false,
+      quoteStyle: 'single',
+      semicolons: false,
+    }),
+  ],
+}
+```
+
+## Configuration Options
+
+### Route Generation
+
+#### `routesDirectory`
+- **Type:** `string`
+- **Default:** `'./src/routes'`
+- The directory where your route files are located.
+
+#### `generatedRouteTree`
+- **Type:** `string`
+- **Default:** `'./src/routeTree.gen.ts'`
+- The file where the generated route tree will be written.
+
+#### `routeFilePrefix`
+- **Type:** `string`
+- **Optional**
+- A prefix to require for all route files.
+
+#### `routeFileIgnorePrefix`
+- **Type:** `string`
+- **Default:** `'-'`
+- Files starting with this prefix will be ignored during route generation.
+
+### Code Splitting
+
+#### `codeSplittingOptions`
+- **Type:** `CodeSplittingOptions`
+- **Optional**
+- Controls how routes are code-split.
+
+```js
+{
+  codeSplittingOptions: {
+    // Customize splitting per route
+    splitBehavior: ({ routeId }) => {
+      if (routeId.includes('dashboard')) {
+        return [['component'], ['loader']]
+      }
+    },
+    
+    // Default behavior for all routes
+    defaultBehavior: [
+      ['component'],
+      ['pendingComponent'],
+      ['errorComponent', 'notFoundComponent']
+    ],
+    
+    // Delete specific nodes from routes
+    deleteNodes: ['beforeLoad'],
+    
+    // Enable HMR
+    addHmr: true
+  }
+}
+```
+
+### TypeScript Options
+
+#### `disableTypes`
+- **Type:** `boolean`
+- **Default:** `false`
+- Disable TypeScript type generation.
+
+#### `quoteStyle`
+- **Type:** `'single' | 'double'`
+- **Default:** `'single'`
+- Quote style for generated code.
+
+#### `semicolons`
+- **Type:** `boolean`
+- **Default:** `false`
+- Whether to include semicolons in generated code.
+
+## Separate Plugins
+
+For more granular control, use individual plugins:
+
+### Route Generator Only
+
+```js
+import { TanStackRouterGeneratorWebpack } from '@tanstack/router-plugin/webpack'
+
+export default {
+  plugins: [TanStackRouterGeneratorWebpack()],
+}
+```
+
+### Code Splitter Only
+
+```js
+import { TanStackRouterCodeSplitterWebpack } from '@tanstack/router-plugin/webpack'
+
+export default {
+  plugins: [TanStackRouterCodeSplitterWebpack()],
+}
+```
+
+## How It Works
+
+The Webpack plugin is built using [unplugin](https://github.com/unjs/unplugin), which provides a unified plugin interface across multiple build tools. The plugin:
+
+1. Watches your routes directory for changes
+2. Generates a typed route tree file
+3. Transforms route imports for code splitting
+4. Enables hot module replacement for route updates
+
+## Examples
+
+### Basic React Setup
+
+```js
+const path = require('path')
+const TanStackRouterWebpack = require('@tanstack/router-plugin/webpack').default
+
+module.exports = {
+  entry: './src/index.tsx',
+  output: {
+    path: path.resolve(__dirname, 'dist'),
+    filename: 'bundle.js',
+  },
+  plugins: [
+    TanStackRouterWebpack({
+      routesDirectory: './src/routes',
+      generatedRouteTree: './src/routeTree.gen.ts',
+    }),
+  ],
+  module: {
+    rules: [
+      {
+        test: /\.tsx?$/,
+        use: 'ts-loader',
+        exclude: /node_modules/,
+      },
+    ],
+  },
+  resolve: {
+    extensions: ['.tsx', '.ts', '.js'],
+  },
+}
+```
+
+### With Code Splitting
+
+```js
+import TanStackRouterWebpack from '@tanstack/router-plugin/webpack'
+
+export default {
+  plugins: [
+    TanStackRouterWebpack({
+      routesDirectory: './src/routes',
+      codeSplittingOptions: {
+        defaultBehavior: [
+          ['component'],
+          ['loader'],
+          ['errorComponent']
+        ],
+      },
+    }),
+  ],
+  optimization: {
+    splitChunks: {
+      chunks: 'all',
+    },
+  },
+}
+```
+
+### Development vs Production
+
+```js
+import TanStackRouterWebpack from '@tanstack/router-plugin/webpack'
+
+const isDev = process.env.NODE_ENV === 'development'
+
+export default {
+  mode: isDev ? 'development' : 'production',
+  plugins: [
+    TanStackRouterWebpack({
+      routesDirectory: './src/routes',
+      codeSplittingOptions: {
+        addHmr: isDev, // Only enable HMR in development
+      },
+      disableLogging: !isDev,
+    }),
+  ],
+}
+```
+
+## TypeScript Configuration
+
+Ensure your `tsconfig.json` includes the generated route tree:
+
+```json
+{
+  "compilerOptions": {
+    "moduleResolution": "bundler",
+    "skipLibCheck": true
+  },
+  "include": [
+    "src/**/*",
+    "src/routeTree.gen.ts"
+  ]
+}
+```
+
+## Troubleshooting
+
+### Plugin Not Running
+
+Make sure the plugin is added to the `plugins` array in your Webpack config.
+
+### Route Tree Not Updating
+
+In development mode, Webpack should watch for file changes automatically. If routes aren't updating:
+
+1. Check that your `routesDirectory` is correct
+2. Verify that Webpack's watch mode is enabled
+3. Try restarting the development server
+
+### Build Errors
+
+If you encounter build errors:
+
+1. Ensure all dependencies are installed
+2. Check that your route files have valid exports
+3. Verify TypeScript configuration is correct
+
+## Migration from Other Plugins
+
+If you're migrating from the standalone `@tanstack/router-vite-plugin`, the Webpack plugin provides equivalent functionality with the same configuration API.

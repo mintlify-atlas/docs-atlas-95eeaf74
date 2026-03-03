@@ -1,0 +1,339 @@
+---
+title: DevTools
+description: Debug and inspect your router state with TanStack Router DevTools
+---
+
+TanStack Router DevTools provides a visual interface for debugging your router state, inspecting routes, and monitoring navigation in development.
+
+## Installation
+
+Install the DevTools package:
+
+<CodeGroup>
+```bash npm
+npm install @tanstack/react-router-devtools
+```
+```bash yarn
+yarn add @tanstack/react-router-devtools
+```
+```bash pnpm
+pnpm add @tanstack/react-router-devtools
+```
+</CodeGroup>
+
+## Basic setup
+
+Add DevTools to your root route:
+
+```tsx src/routes/__root.tsx
+import { createRootRoute, Outlet } from '@tanstack/react-router'
+import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
+
+export const Route = createRootRoute({
+  component: () => (
+    <>
+      <Outlet />
+      <TanStackRouterDevtools />
+    </>
+  ),
+})
+```
+
+<Note>
+DevTools are automatically excluded from production builds, so you can safely include them in your code.
+</Note>
+
+## Position options
+
+Control where the DevTools panel appears:
+
+```tsx
+<TanStackRouterDevtools 
+  position="bottom-left"  // bottom-left, bottom-right, top-left, top-right
+  initialIsOpen={false}   // Start collapsed
+/>
+```
+
+## Features
+
+### Router explorer
+
+Inspect your router's current state:
+
+- **Location** - Current pathname, search params, and hash
+- **Matches** - Active route matches with params and data
+- **Pending** - Routes being navigated to
+- **Cached** - Cached loader data
+
+### Route inspector
+
+View detailed information about each route:
+
+- Route ID and path
+- Path parameters
+- Search parameters
+- Loader data
+- Route context
+- Match status
+
+### Navigation timeline
+
+Track navigation events:
+
+- Navigation start/end times
+- Loader execution duration
+- Data fetch timings
+- Transition states
+
+### Cache inspector
+
+Monitor loader cache:
+
+- Cached route data
+- Cache timestamps
+- Stale/fresh status
+- Manual cache invalidation
+
+## Development-only features
+
+DevTools include helpful dev-only features:
+
+```tsx
+<TanStackRouterDevtools 
+  errorComponent={(props) => (
+    <div>
+      <h2>DevTools Error</h2>
+      <pre>{props.error.message}</pre>
+    </div>
+  )}
+  // Show router warnings
+  showWarnings={true}
+/>
+```
+
+## Custom styling
+
+Style the DevTools panel:
+
+```tsx
+<TanStackRouterDevtools 
+  panelProps={{
+    style: {
+      backgroundColor: '#1a1a1a',
+      color: '#fff',
+    },
+  }}
+  closeButtonProps={{
+    style: {
+      color: '#fff',
+    },
+  }}
+/>
+```
+
+## Toggle DevTools
+
+Control visibility programmatically:
+
+```tsx
+import { useRouterDevtools } from '@tanstack/react-router-devtools'
+
+function DevToolsToggle() {
+  const { isOpen, toggle } = useRouterDevtools()
+  
+  return (
+    <button onClick={toggle}>
+      {isOpen ? 'Hide' : 'Show'} DevTools
+    </button>
+  )
+}
+```
+
+## Environment-based setup
+
+Only load DevTools in development:
+
+```tsx
+const DevTools = 
+  process.env.NODE_ENV === 'development'
+    ? React.lazy(() =>
+        import('@tanstack/react-router-devtools').then((mod) => ({
+          default: mod.TanStackRouterDevtools,
+        }))
+      )
+    : () => null
+
+export const Route = createRootRoute({
+  component: () => (
+    <>
+      <Outlet />
+      <React.Suspense fallback={null}>
+        <DevTools />
+      </React.Suspense>
+    </>
+  ),
+})
+```
+
+## Debugging techniques
+
+### Inspect navigation
+
+Use DevTools to debug navigation issues:
+
+1. Open DevTools panel
+2. Navigate to a route
+3. Check the "Pending" section for loading states
+4. Inspect "Matches" for active route data
+5. View "Timeline" for performance issues
+
+### Debug loader data
+
+Inspect what data loaders return:
+
+1. Navigate to route with loader
+2. Open "Route Inspector"
+3. View "Loader Data" section
+4. Check data structure and values
+
+### Monitor cache behavior
+
+Understand cache hits and misses:
+
+1. Open "Cache Inspector"
+2. Navigate between routes
+3. Watch cache entries being created/reused
+4. Check stale times and expiration
+
+## Integration with other DevTools
+
+### React DevTools
+
+Use both together:
+
+```tsx
+import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
+
+function App() {
+  return (
+    <>
+      <Outlet />
+      <TanStackRouterDevtools position="bottom-right" />
+      <ReactQueryDevtools position="bottom-left" />
+    </>
+  )
+}
+```
+
+### Browser DevTools
+
+Access router state from console:
+
+```tsx
+import { useRouter } from '@tanstack/react-router'
+
+function DebugHelper() {
+  const router = useRouter()
+  
+  React.useEffect(() => {
+    // Expose router to window for console access
+    if (process.env.NODE_ENV === 'development') {
+      (window as any).__router = router
+    }
+  }, [router])
+  
+  return null
+}
+```
+
+Then in console:
+
+```javascript
+// Access router state
+__router.state.location.pathname
+
+// Manually invalidate cache
+__router.invalidate()
+
+// Navigate programmatically
+__router.navigate({ to: '/dashboard' })
+```
+
+## Performance profiling
+
+Identify performance bottlenecks:
+
+1. Open DevTools timeline
+2. Perform navigation
+3. Check loader execution times
+4. Identify slow data fetches
+5. Optimize slow loaders
+
+## Common debugging scenarios
+
+### Route not matching
+
+1. Check route path in DevTools explorer
+2. Verify params are correct
+3. Inspect route tree structure
+4. Check for path conflicts
+
+### Loader not running
+
+1. Open Route Inspector
+2. Check if loader is defined
+3. Verify loaderDeps configuration
+4. Check cache status
+
+### Data not updating
+
+1. Check cache inspector
+2. Verify staleTime settings
+3. Manually invalidate cache
+4. Check loaderDeps dependencies
+
+## Best practices
+
+<Accordion title="Keep DevTools installed">
+DevTools are tree-shaken in production, so there's no cost to keeping them in your code.
+</Accordion>
+
+<Accordion title="Use DevTools for learning">
+Explore the DevTools UI to understand how the router works internally.
+</Accordion>
+
+<Accordion title="Profile before optimizing">
+Use the timeline to identify actual performance issues before optimizing.
+</Accordion>
+
+<Accordion title="Inspect route state">
+Use the route inspector to understand what data is available to your components.
+</Accordion>
+
+## Keyboard shortcuts
+
+<Info>
+**Toggle panel**: Click the floating button or use your custom toggle
+</Info>
+
+<Tip>
+**Resize panel**: Drag the edge of the DevTools panel to resize
+</Tip>
+
+## Production builds
+
+<Warning>
+DevTools code is automatically removed in production builds. No manual configuration needed.
+</Warning>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Router state" icon="circle-info" href="/router/api/hooks">
+    Learn about router state hooks
+  </Card>
+  <Card title="Data loading" icon="database" href="/router/guides/data-loading">
+    Debug data loading issues
+  </Card>
+</CardGroup>

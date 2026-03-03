@@ -1,0 +1,400 @@
+---
+title: Server-side rendering (SSR)
+description: Render your routes on the server for improved performance and SEO
+---
+
+Server-side rendering (SSR) enables rendering your application on the server, sending fully-rendered HTML to the client for faster initial page loads and better SEO.
+
+## SSR setup
+
+<Steps>
+  <Step title="Install SSR packages">
+    For React Router with SSR:
+
+    <CodeGroup>
+    ```bash npm
+    npm install @tanstack/react-router
+    npm install -D @tanstack/router-plugin
+    ```
+    ```bash pnpm
+    pnpm add @tanstack/react-router
+    pnpm add -D @tanstack/router-plugin
+    ```
+    </CodeGroup>
+  </Step>
+
+  <Step title="Configure for SSR">
+    Create separate client and server entry points:
+
+    ```tsx src/entry-client.tsx
+    import ReactDOM from 'react-dom/client'
+    import { StartClient } from '@tanstack/react-start/client'
+    import { createRouter } from './router'
+
+    const router = createRouter()
+
+    ReactDOM.hydrateRoot(
+      document.getElementById('root')!,
+      <StartClient router={router} />
+    )
+    ```
+
+    ```tsx src/entry-server.tsx
+    import { renderToString } from 'react-dom/server'
+    import { StartServer } from '@tanstack/react-start/server'
+    import { createMemoryHistory } from '@tanstack/react-router'
+    import { createRouter } from './router'
+
+    export async function render(url: string) {
+      const router = createRouter()
+      
+      const memoryHistory = createMemoryHistory({
+        initialEntries: [url],
+      })
+      
+      router.update({ history: memoryHistory })
+      
+      await router.load()
+      
+      const html = renderToString(<StartServer router={router} />)
+      
+      return html
+    }
+    ```
+  </Step>
+
+  <Step title="Create HTML template">
+    ```tsx
+    export function createHtml(content: string) {
+      return `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="UTF-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+            <title>My App</title>
+          </head>
+          <body>
+            <div id="root">${content}</div>
+            <script type="module" src="/src/entry-client.tsx"></script>
+          </body>
+        </html>
+      `
+    }
+    ```
+  </Step>
+</Steps>
+
+## Using TanStack Start
+
+For the easiest SSR setup, use TanStack Start:
+
+```tsx app.config.ts
+import { defineConfig } from '@tanstack/react-start/config'
+
+export default defineConfig({
+  // SSR is enabled by default
+})
+```
+
+```tsx src/routes/__root.tsx
+import { createRootRoute, Outlet, ScrollRestoration } from '@tanstack/react-router'
+import { Meta, Scripts } from '@tanstack/react-start'
+
+export const Route = createRootRoute({
+  component: () => (
+    <html>
+      <head>
+        <Meta />
+      </head>
+      <body>
+        <Outlet />
+        <ScrollRestoration />
+        <Scripts />
+      </body>
+    </html>
+  ),
+})
+```
+
+## Server-side data loading
+
+Loaders run on the server during SSR:
+
+```tsx src/routes/posts/$postId.tsx
+import { createFileRoute } from '@tanstack/react-router'
+import { fetchPost } from '@/api/posts'
+
+export const Route = createFileRoute('/posts/$postId')({
+  loader: async ({ params }) => {
+    // Runs on server during SSR
+    const post = await fetchPost(params.postId)
+    return { post }
+  },
+  component: PostPage,
+})
+
+function PostPage() {
+  const { post } = Route.useLoaderData()
+  return (
+    <article>
+      <h1>{post.title}</h1>
+      <div>{post.content}</div>
+    </article>
+  )
+}
+```
+
+## Hydration
+
+Dehydrate server state and rehydrate on client:
+
+```tsx src/entry-server.tsx
+import { DehydrateRouter } from '@tanstack/react-router'
+
+export async function render(url: string) {
+  const router = createRouter()
+  // ... setup router
+  
+  await router.load()
+  
+  const html = renderToString(
+    <>
+      <StartServer router={router} />
+      <DehydrateRouter router={router} />
+    </>
+  )
+  
+  return html
+}
+```
+
+```tsx src/entry-client.tsx
+import { HydrateRouter } from '@tanstack/react-router'
+
+const router = createRouter()
+
+ReactDOM.hydrateRoot(
+  document.getElementById('root')!,
+  <HydrateRouter router={router}>
+    <StartClient router={router} />
+  </HydrateRouter>
+)
+```
+
+## Client-only components
+
+Render components only on the client:
+
+```tsx
+import { ClientOnly } from '@tanstack/react-router'
+
+function MyPage() {
+  return (
+    <div>
+      <h1>This renders on server</h1>
+      <ClientOnly fallback={<Skeleton />}>
+        {() => <BrowserOnlyComponent />}
+      </ClientOnly>
+    </div>
+  )
+}
+```
+
+## Detecting SSR
+
+Check if code is running on server:
+
+```tsx
+import { isServer } from '@tanstack/react-router'
+
+function MyComponent() {
+  React.useEffect(() => {
+    if (!isServer) {
+      // Client-only code
+      console.log('Running on client')
+    }
+  }, [])
+  
+  return <div>Content</div>
+}
+```
+
+## Streaming SSR
+
+Stream HTML as it's generated:
+
+```tsx src/entry-server.tsx
+import { renderToPipeableStream } from 'react-dom/server'
+
+export function renderStream(url: string, res: Response) {
+  const router = createRouter()
+  // ... setup router
+  
+  const { pipe } = renderToPipeableStream(
+    <StartServer router={router} />,
+    {
+      onShellReady() {
+        res.setHeader('Content-Type', 'text/html')
+        pipe(res)
+      },
+      onError(error) {
+        console.error(error)
+      },
+    }
+  )
+}
+```
+
+## SEO and meta tags
+
+Set meta tags from routes:
+
+```tsx
+export const Route = createFileRoute('/posts/$postId')({
+  loader: async ({ params }) => {
+    const post = await fetchPost(params.postId)
+    return { post }
+  },
+  meta: ({ loaderData }) => [
+    { title: loaderData.post.title },
+    { name: 'description', content: loaderData.post.excerpt },
+    { property: 'og:title', content: loaderData.post.title },
+    { property: 'og:image', content: loaderData.post.image },
+  ],
+})
+```
+
+## Environment variables
+
+Access env vars safely:
+
+```tsx
+// Server-only env vars
+if (isServer) {
+  const apiKey = process.env.SECRET_API_KEY
+}
+
+// Public env vars (prefixed with PUBLIC_)
+const publicUrl = import.meta.env.PUBLIC_API_URL
+```
+
+## Error handling in SSR
+
+Handle errors during server rendering:
+
+```tsx
+export async function render(url: string) {
+  try {
+    const router = createRouter()
+    await router.load()
+    return renderToString(<StartServer router={router} />)
+  } catch (error) {
+    console.error('SSR Error:', error)
+    // Return error page HTML
+    return renderToString(<ErrorPage error={error} />)
+  }
+}
+```
+
+## Deferred data in SSR
+
+Stream deferred data after initial render:
+
+```tsx
+import { defer, Await } from '@tanstack/react-router'
+
+export const Route = createFileRoute('/dashboard')({
+  loader: async () => {
+    // Critical data loads first
+    const user = await fetchUser()
+    
+    // Non-critical data is deferred
+    const stats = defer(fetchStats())
+    
+    return { user, stats }
+  },
+})
+
+function Dashboard() {
+  const { user, stats } = Route.useLoaderData()
+  
+  return (
+    <div>
+      <h1>Welcome, {user.name}</h1>
+      <Suspense fallback={<Skeleton />}>
+        <Await promise={stats}>
+          {(data) => <Stats data={data} />}
+        </Await>
+      </Suspense>
+    </div>
+  )
+}
+```
+
+## Static generation
+
+Pre-render routes at build time:
+
+```tsx build.ts
+import { renderToString } from 'react-dom/server'
+import { createRouter } from './router'
+import { writeFileSync } from 'fs'
+
+const routes = ['/', '/about', '/contact']
+
+for (const route of routes) {
+  const router = createRouter()
+  // ... render route
+  const html = renderToString(<StartServer router={router} />)
+  
+  writeFileSync(`dist${route}/index.html`, html)
+}
+```
+
+## Best practices
+
+<Accordion title="Load critical data in loaders">
+Use loaders for data needed for initial render to ensure it's available during SSR.
+</Accordion>
+
+<Accordion title="Use ClientOnly for browser APIs">
+Wrap code that uses `window`, `document`, or other browser APIs in ClientOnly.
+</Accordion>
+
+<Accordion title="Minimize server bundle size">
+Keep server-only code separate and use tree-shaking to reduce bundle size.
+</Accordion>
+
+<Accordion title="Cache rendered pages">
+Implement caching strategies for frequently-accessed pages.
+</Accordion>
+
+<Accordion title="Use streaming for better performance">
+Stream HTML as it's generated for faster time-to-first-byte.
+</Accordion>
+
+## Performance tips
+
+<Info>
+**Preload critical routes**: Preload routes users are likely to visit next.
+</Info>
+
+<Tip>
+**Use deferred data**: Defer non-critical data to improve initial page load.
+</Tip>
+
+<Warning>
+Avoid heavy computations in loaders - cache results or move to background jobs.
+</Warning>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="TanStack Start" icon="rocket" href="/start/introduction">
+    Full-stack framework with SSR
+  </Card>
+  <Card title="Data loading" icon="database" href="/router/guides/data-loading">
+    Optimize server data fetching
+  </Card>
+</CardGroup>

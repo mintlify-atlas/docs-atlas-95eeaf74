@@ -1,0 +1,332 @@
+---
+title: Route
+---
+
+# Route API
+
+Routes define the URL structure, data loading, and rendering for your application.
+
+## `createRoute`
+
+Creates a non-root Route instance for code-based routing.
+
+```tsx
+import { createRoute } from '@tanstack/react-router'
+import { rootRoute } from './root'
+
+const postsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/posts',
+  component: PostsComponent,
+})
+```
+
+### Parameters
+
+<ParamField path="options" type="RouteOptions" required>
+  Route configuration options.
+
+  <Expandable title="properties">
+    <ParamField path="getParentRoute" type="() => Route" required>
+      A function that returns the parent route. Required for non-root routes.
+    </ParamField>
+
+    <ParamField path="path" type="string" required>
+      The path segment for this route. Can include path parameters like `$postId`.
+    </ParamField>
+
+    <ParamField path="id" type="string">
+      A custom ID for the route. If not provided, one will be generated from the path.
+    </ParamField>
+
+    <ParamField path="component" type="RouteComponent">
+      The component to render for this route.
+    </ParamField>
+
+    <ParamField path="errorComponent" type="ErrorRouteComponent">
+      The component to render when an error occurs in this route.
+    </ParamField>
+
+    <ParamField path="pendingComponent" type="RouteComponent">
+      The component to render while the route is loading.
+    </ParamField>
+
+    <ParamField path="notFoundComponent" type="NotFoundRouteComponent">
+      The component to render when this route doesn't match.
+    </ParamField>
+
+    <ParamField path="loader" type="LoaderFn">
+      A function that loads data for the route.
+
+      ```tsx
+      loader: async ({ params }) => {
+        const post = await fetchPost(params.postId)
+        return { post }
+      }
+      ```
+    </ParamField>
+
+    <ParamField path="beforeLoad" type="BeforeLoadFn">
+      A function that is called before the route is loaded. Can be used for authentication checks.
+
+      ```tsx
+      beforeLoad: async ({ context }) => {
+        if (!context.user) {
+          throw redirect({ to: '/login' })
+        }
+      }
+      ```
+    </ParamField>
+
+    <ParamField path="validateSearch" type="SearchValidator">
+      A function or schema to validate and parse search parameters.
+
+      ```tsx
+      validateSearch: (search) => ({
+        page: Number(search.page) || 1,
+        filter: search.filter || 'all',
+      })
+      ```
+    </ParamField>
+
+    <ParamField path="loaderDeps" type="(opts: { search }) => any">
+      A function that returns dependencies for the loader. Changes trigger a reload.
+
+      ```tsx
+      loaderDeps: ({ search }) => ({ page: search.page })
+      ```
+    </ParamField>
+
+    <ParamField path="context" type="RouteContextFn">
+      A function that returns additional context for this route and its children.
+
+      ```tsx
+      context: ({ params }) => ({
+        postId: params.postId,
+      })
+      ```
+    </ParamField>
+
+    <ParamField path="staleTime" type="number">
+      The time in milliseconds that the route's data will be considered fresh.
+    </ParamField>
+
+    <ParamField path="gcTime" type="number">
+      The time in milliseconds that the route's data will be kept in the cache after it becomes unused.
+    </ParamField>
+
+    <ParamField path="pendingMs" type="number">
+      The minimum time in milliseconds before the pending component is shown.
+    </ParamField>
+
+    <ParamField path="pendingMinMs" type="number">
+      The minimum time in milliseconds that the pending component will be shown once it appears.
+    </ParamField>
+
+    <ParamField path="preload" type="boolean">
+      If `true`, this route will be preloaded when it enters the viewport or on intent.
+    </ParamField>
+
+    <ParamField path="preloadStaleTime" type="number">
+      The time in milliseconds that preloaded data will be considered fresh.
+    </ParamField>
+
+    <ParamField path="shouldReload" type="boolean | ((args) => boolean)">
+      Controls whether the route should reload when navigated to.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### Returns
+
+<ResponseField name="route" type="Route">
+  A Route instance to be attached to the route tree.
+</ResponseField>
+
+## Route Methods
+
+Route instances expose several type-safe methods for use in components:
+
+### `route.useMatch()`
+
+Get the current route match data.
+
+```tsx
+function Component() {
+  const match = postsRoute.useMatch()
+  return <div>{match.status}</div>
+}
+```
+
+### `route.useParams()`
+
+Access the route's path parameters.
+
+```tsx
+function Component() {
+  const { postId } = postRoute.useParams()
+  return <div>Post ID: {postId}</div>
+}
+```
+
+### `route.useSearch()`
+
+Access the route's search parameters.
+
+```tsx
+function Component() {
+  const { page, filter } = postsRoute.useSearch()
+  return <div>Page {page}</div>
+}
+```
+
+### `route.useLoaderData()`
+
+Access the route's loader data.
+
+```tsx
+function Component() {
+  const { post } = postRoute.useLoaderData()
+  return <h1>{post.title}</h1>
+}
+```
+
+### `route.useLoaderDeps()`
+
+Access the route's loader dependencies.
+
+```tsx
+function Component() {
+  const deps = postsRoute.useLoaderDeps()
+  return <div>Page: {deps.page}</div>
+}
+```
+
+### `route.useNavigate()`
+
+Get a navigate function pre-bound to this route.
+
+```tsx
+function Component() {
+  const navigate = postRoute.useNavigate()
+  return <button onClick={() => navigate({ to: '..' })}>Back</button>
+}
+```
+
+### `route.useRouteContext()`
+
+Access the route's context.
+
+```tsx
+function Component() {
+  const context = postRoute.useRouteContext()
+  return <div>{context.postId}</div>
+}
+```
+
+### `route.Link`
+
+A pre-bound Link component for this route.
+
+```tsx
+function Component() {
+  return (
+    <postRoute.Link params={{ postId: '123' }}>
+      View Post
+    </postRoute.Link>
+  )
+}
+```
+
+## `createRouteMask`
+
+Create a route mask for displaying a route at a different path.
+
+```tsx
+import { createRouteMask } from '@tanstack/react-router'
+
+const photoModalMask = createRouteMask({
+  routeTree,
+  from: '/photos/$photoId',
+  to: '/photos',
+  params: true,
+})
+```
+
+### Parameters
+
+<ParamField path="options" type="object" required>
+  <Expandable title="properties">
+    <ParamField path="routeTree" type="AnyRoute" required>
+      The route tree to create the mask for.
+    </ParamField>
+
+    <ParamField path="from" type="string" required>
+      The route path to mask from.
+    </ParamField>
+
+    <ParamField path="to" type="string" required>
+      The route path to mask to (what will be shown in the URL).
+    </ParamField>
+
+    <ParamField path="params" type="boolean | object">
+      Parameters to include in the masked URL. Use `true` to include all params.
+    </ParamField>
+
+    <ParamField path="search" type="boolean | object">
+      Search parameters to include in the masked URL. Use `true` to include all search params.
+    </ParamField>
+
+    <ParamField path="hash" type="boolean | string">
+      Hash to include in the masked URL. Use `true` to include the current hash.
+    </ParamField>
+
+    <ParamField path="unmaskOnReload" type="boolean">
+      If `true`, the mask will be removed when the page is reloaded.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### Returns
+
+<ResponseField name="routeMask" type="RouteMask">
+  A route mask object to pass to the router's `routeMasks` option.
+</ResponseField>
+
+## Component Types
+
+### `RouteComponent`
+
+A standard route component type.
+
+```tsx
+import type { RouteComponent } from '@tanstack/react-router'
+
+const MyComponent: RouteComponent = () => {
+  return <div>Hello</div>
+}
+```
+
+### `ErrorRouteComponent`
+
+An error boundary component type with error props.
+
+```tsx
+import type { ErrorRouteComponent } from '@tanstack/react-router'
+
+const ErrorComponent: ErrorRouteComponent = ({ error }) => {
+  return <div>Error: {error.message}</div>
+}
+```
+
+### `NotFoundRouteComponent`
+
+A not-found component type with routing props.
+
+```tsx
+import type { NotFoundRouteComponent } from '@tanstack/react-router'
+
+const NotFound: NotFoundRouteComponent = () => {
+  return <div>Page not found</div>
+}
+```

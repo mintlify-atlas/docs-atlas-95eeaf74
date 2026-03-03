@@ -466,3 +466,67 @@ function FormComponent() {
 ### Returns
 
 Void. The hook sets up the blocker internally.
+
+## `useMatches`
+
+Get all current route matches.
+
+```tsx
+import { useMatches } from '@tanstack/react-router'
+
+function Breadcrumbs() {
+  const matches = useMatches()
+  
+  return (
+    <nav>
+      {matches.map((match) => (
+        <span key={match.id}>{match.route.path}</span>
+      ))}
+    </nav>
+  )
+}
+```
+
+### Options
+
+<ParamField path="select" type="(matches) => any">
+  Select a derived value from the matches array.
+</ParamField>
+
+<ParamField path="structuralSharing" type="boolean">
+  Enable structural sharing for stable references.
+</ParamField>
+
+### Returns
+
+<ResponseField name="matches" type="RouteMatch[]">
+  Array of all current route matches from root to leaf.
+</ResponseField>
+
+## `useCanGoBack`
+
+Check if the router can go back in history.
+
+```tsx
+import { useCanGoBack } from '@tanstack/react-router'
+
+function BackButton() {
+  const canGoBack = useCanGoBack()
+  const navigate = useNavigate()
+  
+  return (
+    <button
+      onClick={() => navigate({ to: '..' })}
+      disabled={!canGoBack}
+    >
+      Back
+    </button>
+  )
+}
+```
+
+### Returns
+
+<ResponseField name="canGoBack" type="boolean">
+  Whether the router can navigate back in history.
+</ResponseField>

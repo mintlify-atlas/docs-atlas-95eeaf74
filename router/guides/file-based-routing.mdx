@@ -67,7 +67,7 @@ With file-based routing, you create route files in a designated directory (typic
     ```tsx src/routes/index.tsx
     import { createFileRoute } from '@tanstack/react-router'
 
-    export const Route = createFileRoute('/')() ({
+    export const Route = createFileRoute('/')({
       component: () => <div>Welcome Home!</div>,
     })
     ```
